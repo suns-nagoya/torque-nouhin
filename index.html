@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>トルク 納品書・請求書</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+  :root { --ink:#1f2933; --sub:#616e7c; --line:#d9dee3; --bg:#f5f7f9; --accent:#33475b; --ok:#1f7a4d; --ng:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color:var(--ink); background:var(--bg); font-size:16px; }
+  header { background:var(--accent); color:#fff; padding:14px 16px; }
+  header h1 { margin:0; font-size:17px; font-weight:600; }
+  nav { display:flex; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
+  nav button { flex:1; border:0; background:none; padding:13px 0; font-size:16px; color:var(--sub); border-bottom:3px solid transparent; }
+  nav button.on { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  main { padding:14px; max-width:640px; margin:0 auto; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--sub); margin-bottom:4px; }
+  input, select { width:100%; font-size:16px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+  .row2 { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:10px; }
+  .row2 > div { min-width:0; }
+  input, select { height:46px; min-width:0; display:block; margin:0; }
+  input[type="date"] { -webkit-appearance:none; appearance:none; text-align:left; line-height:24px; }
+  input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
+  .item { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+  .item:first-child { border-top:0; padding-top:0; margin-top:0; }
+  .itemhead { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; color:var(--sub); }
+  .del { border:0; background:none; color:var(--ng); font-size:14px; padding:4px 0; }
+  .qtyline { display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:end; margin-top:8px; }
+  .amount { font-size:15px; min-width:96px; text-align:right; padding-bottom:10px; }
+  .btn { display:block; width:100%; border:0; border-radius:8px; padding:13px; font-size:16px; font-weight:600; text-align:center; text-decoration:none; }
+  .primary { background:var(--accent); color:#fff; }
+  .ghost { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  .btn:disabled { opacity:.5; }
+  .total { display:flex; justify-content:space-between; font-size:17px; font-weight:600; margin:4px 0 12px; }
+  .msg { padding:10px 12px; border-radius:8px; font-size:14px; margin-bottom:12px; }
+  .msg.ok { background:#e8f5ee; color:var(--ok); }
+  .msg.ng { background:#fdecea; color:var(--ng); }
+  .msg.info { background:#eef2f6; color:var(--ink); }
+  .list { list-style:none; margin:0; padding:0; }
+  .list li { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 0; border-top:1px solid var(--line); }
+  .list li:first-child { border-top:0; }
+  .list .meta { font-size:13px; color:var(--sub); }
+  .list button, .list a { flex:none; font-size:14px; padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--accent); text-decoration:none; }
+  .list a { background:var(--accent); color:#fff; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  .hidden { display:none !important; }
+  #scanner { position:fixed; inset:0; background:#000; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #scanner video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #scanner .frame { position:relative; width:70vw; max-width:320px; aspect-ratio:1; border:3px solid #fff; border-radius:16px; box-shadow:0 0 0 9999px rgba(0,0,0,.45); }
+  #scanner .hint { position:relative; color:#fff; margin:18px 0; font-size:15px; }
+  #scanner .btn { position:relative; width:auto; padding:12px 32px; }
+</style>
+</head>
+<body>
+<header><h1>トルク株式会社　納品書・請求書</h1></header>
+<nav>
+  <button id="tabIn" class="on">納品を入力</button>
+  <button id="tabPr">印刷</button>
+</nav>
+<main>
+  <div id="status" class="msg info">読み込んでいます…</div>
+
+  <section id="viewIn">
+    <div class="card">
+      <div class="row2">
+        <div><label for="date">納品日</label><input type="date" id="date"></div>
+        <div><label for="tanto">担当者</label><input type="text" id="tanto" placeholder="例：永島"></div>
+      </div>
+    </div>
+    <button class="btn primary" id="scanBtn" style="margin-bottom:12px">QRコードを読み取る</button>
+    <input type="file" id="qrFile" accept="image/*" capture="environment" class="hidden">
+    <div id="linkBox" class="card hidden">
+      <h2>はじめての品番です</h2>
+      <p id="linkInfo" style="font-size:14px;margin:0 0 8px"></p>
+      <select id="linkName"></select>
+      <button class="btn primary" id="linkSave" style="margin-top:10px">この品名で登録して追加</button>
+    </div>
+    <div class="card">
+      <h2>品目</h2>
+      <div id="items"></div>
+      <button class="btn ghost" id="addItem" style="margin-top:12px">＋ 品目を追加</button>
+    </div>
+    <div class="total"><span>合計（税抜）</span><span id="sum">¥0</span></div>
+    <button class="btn primary" id="save">保存する</button>
+    <div id="saved" class="hidden" style="margin-top:12px">
+      <div class="msg ok" id="savedMsg"></div>
+      <button class="btn ghost" id="goPrint">この日の納品書を印刷する</button>
+    </div>
+  </section>
+
+  <section id="viewPr" class="hidden">
+    <div id="prepared" class="card hidden">
+      <h2 id="preparedTitle"></h2>
+      <a class="btn primary" id="pdfLink" href="#" target="_blank">PDFを開く</a>
+      <p class="meta" style="font-size:13px;color:var(--sub);margin:8px 0 0">開いたPDFを共有メニューの「プリント」から印刷、またはFAX・メールで送ってください。</p>
+    </div>
+    <div id="noDate" class="msg info hidden"></div>
+    <div class="card">
+      <h2>納品書</h2>
+      <ul class="list" id="dateList"></ul>
+    </div>
+    <div class="card">
+      <h2>請求書</h2>
+      <ul class="list" id="monthList"></ul>
+    </div>
+  </section>
+</main>
+<div id="scanner" class="hidden">
+  <video id="video" playsinline muted autoplay></video>
+  <div class="frame"></div>
+  <p class="hint">QRコードを枠の中に写してください</p>
+  <button class="btn ghost" id="scanClose">閉じる</button>
+</div>
+
+<script>
+let master = [], details = [], lastUrl = null;
+const $ = (id) => document.getElementById(id);
+const yen = (n) => "¥" + Math.round(n).toLocaleString("ja-JP");
+const num = (s) => { const v = parseFloat(String(s ?? "").replace(/[¥,\s]/g, "")); return isNaN(v) ? 0 : v; };
+const pad = (n) => String(n).padStart(2, "0");
+const jpDate = (s) => { const [y, m, d] = s.split("/"); return `${+m}月${+d}日`; };
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function status(text, kind = "info") {
+  const el = $("status");
+  if (!text) { el.classList.add("hidden"); return; }
+  el.className = "msg " + kind; el.textContent = text;
+}
+const API = "https://script.google.com/macros/s/AKfycbwHlrlr6DclNr8q0WrQD02_jIJSSmIw8kb_ozO84XBPbkv_1zm_gV1koJBr4UHWarhX/exec";
+async function run(fn, ...args) {
+  let r;
+  try {
+    r = await fetch(API, { method: "POST", body: JSON.stringify({ fn, args }) });
+  } catch (_) { throw new Error("通信できませんでした。電波の良い場所でもう一度お試しください。"); }
+  const j = await r.json().catch(() => ({ ok: false, error: "サーバーの応答を読めませんでした" }));
+  if (!j.ok) throw new Error(j.error || "エラーが起きました");
+  return j.data;
+}
+const errText = (e) => String((e && e.message) || e);
+function setData(d) {
+  master = d.master;
+  details = d.details;
+}
+
+function renderPrintLists() {
+  const byDate = {};
+  details.forEach(r => { if (r.date) (byDate[r.date] ||= []).push(r); });
+  const dates = Object.keys(byDate).sort().reverse();
+  $("dateList").innerHTML = dates.slice(0, 15).map(dt => {
+    const rows = byDate[dt], sum = rows.reduce((a, r) => a + r.amount, 0);
+    return `<li><div>${esc(dt)}<div class="meta">${rows.length}品目・${yen(sum)}</div></div><button data-kind="nouhin" data-key="${esc(dt)}">PDFを作る</button></li>`;
+  }).join("") || "<li>まだ納品がありません</li>";
+
+  const byMonth = {};
+  details.forEach(r => { if (r.date) { const k = r.date.slice(0, 7); (byMonth[k] ||= []).push(r); } });
+  const months = Object.keys(byMonth).sort().reverse();
+  $("monthList").innerHTML = months.slice(0, 12).map(k => {
+    const rows = byMonth[k], sum = rows.reduce((a, r) => a + r.amount, 0);
+    const days = new Set(rows.map(r => r.date)).size;
+    const [y, mo] = k.split("/");
+    return `<li><div>${y}年${+mo}月分<div class="meta">納品${days}回・${yen(sum)}</div></div><button data-kind="seikyu" data-key="${esc(k)}">PDFを作る</button></li>`;
+  }).join("") || "<li>まだ納品がありません</li>";
+
+  const noDate = details.filter(r => !r.date).length;
+  $("noDate").classList.toggle("hidden", !noDate);
+  $("noDate").textContent = noDate ? `納品日が入っていない明細が${noDate}件あります（スプレッドシートの「納品明細」で入れてください）。` : "";
+}
+
+function itemRow() {
+  const div = document.createElement("div");
+  div.className = "item";
+  div.innerHTML = `
+    <div class="itemhead"><span class="no"></span><button class="del" type="button">削除</button></div>
+    <select class="name"><option value="">品名を選ぶ</option>${master.map((m, i) => `<option value="${i}">${esc(m.name)}</option>`).join("")}</select>
+    <div class="qtyline">
+      <div><label>数量<span class="unitprice"></span></label><input class="qty" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+      <div class="amount">¥0</div>
+    </div>`;
+  div.querySelector(".del").onclick = () => { div.remove(); refresh(); };
+  div.querySelector(".name").onchange = refresh;
+  div.querySelector(".qty").oninput = refresh;
+  $("items").appendChild(div);
+  refresh();
+}
+function readItems() {
+  return [...document.querySelectorAll(".item")].map(div => {
+    const idx = div.querySelector(".name").value;
+    return { div, m: idx === "" ? null : master[+idx], qty: num(div.querySelector(".qty").value) };
+  });
+}
+function refresh() {
+  let sum = 0;
+  const all = readItems();
+  all.forEach((it, i) => {
+    it.div.querySelector(".no").textContent = `品目 ${i + 1}`;
+    it.div.querySelector(".del").style.visibility = all.length > 1 ? "visible" : "hidden";
+    const amt = it.m ? Math.round(it.qty * it.m.price) : 0;
+    sum += amt;
+    it.div.querySelector(".unitprice").textContent = it.m ? `（${it.m.unit}・単価${it.m.price}円）` : "";
+    it.div.querySelector(".amount").textContent = yen(amt);
+  });
+  $("sum").textContent = yen(sum);
+}
+async function save() {
+  const dateIso = $("date").value, tanto = $("tanto").value.trim();
+  const all = readItems(), items = all.filter(it => it.m && it.qty > 0);
+  if (!dateIso) return status("納品日を入れてください。", "ng");
+  if (!items.length) return status("品名と数量を入れてください。", "ng");
+  if (all.some(it => (it.m && !(it.qty > 0)) || (!it.m && it.qty > 0))) return status("品名か数量が抜けている品目があります。", "ng");
+  try { localStorage.setItem("torque_tanto", tanto); } catch (_) {}
+  const date = dateIso.replace(/-/g, "/");
+  $("save").disabled = true; status("保存しています…");
+  try {
+    setData(await run("saveDelivery", date, tanto, items.map(it => ({ name: it.m.name, qty: it.qty, price: it.m.price }))));
+    status("");
+    $("savedMsg").textContent = `${jpDate(date)}の納品を${items.length}品目保存しました。`;
+    $("saved").classList.remove("hidden");
+    $("goPrint").dataset.key = date;
+    $("items").innerHTML = ""; itemRow();
+    renderPrintLists();
+  } catch (e) {
+    status("保存できませんでした：" + errText(e), "ng");
+  } finally { $("save").disabled = false; }
+}
+
+async function makePdf(kind, key, btn) {
+  $("prepared").classList.add("hidden");
+  document.querySelectorAll("button[data-kind]").forEach(b => b.disabled = true);
+  status("PDFを作っています…（10秒ほどかかります）");
+  try {
+    const r = await run("makePdf", kind, key);
+    const bin = atob(r.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const [y, mo] = key.split("/");
+    $("preparedTitle").textContent = kind === "nouhin" ? `納品書　${key}` : `請求書　${y}年${+mo}月分`;
+    $("pdfLink").href = lastUrl;
+    $("prepared").classList.remove("hidden");
+    status("");
+    $("prepared").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { status("PDFを作れませんでした：" + errText(e), "ng"); }
+  finally { document.querySelectorAll("button[data-kind]").forEach(b => b.disabled = false); }
+}
+
+
+// ---------- QRコード ----------
+let pendingQr = null;
+const normName = (s) => String(s || "").normalize("NFKC").replace(/[xX＊*]/g, "×").replace(/\s+/g, "");
+function parseQr(text) {
+  const code = (text.match(/品番\s*[:：]\s*([0-9A-Za-z\-]+)/) || [])[1];
+  const qty = (text.match(/数量\s*[:：]\s*([\d,]+)/) || [])[1];
+  const name = ((text.match(/品名\s*[:：]\s*(.+)$/) || [])[1] || "").trim();
+  return code ? { code, qty: num(qty), name } : null;
+}
+function decodeQr(img) {
+  for (const max of [1600, 1000, 2400, 700]) {
+    const sc = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, c.width, c.height);
+    const r = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+    if (r) {
+      let t = r.data;
+      if (!/品番/.test(t) && r.binaryData) {
+        try { t = new TextDecoder("shift_jis").decode(new Uint8Array(r.binaryData)); } catch (_) {}
+      }
+      return t;
+    }
+  }
+  return null;
+}
+function addScanned(m, qty) {
+  const already = readItems().some(it => it.m === m);
+  if (already) return status(`「${m.name}」はもう入っています。数量を確認してください。`, "info");
+  let row = readItems().find(it => !it.m && !(it.qty > 0));
+  if (!row) { itemRow(); row = readItems().pop(); }
+  row.div.querySelector(".name").value = String(master.indexOf(m));
+  row.div.querySelector(".qty").value = qty || "";
+  refresh();
+  status(`読み取りました：${m.name}　${(qty || 0).toLocaleString("ja-JP")}${m.unit}`, "ok");
+}
+function handleQrText(text) {
+  const q = parseQr(text);
+  if (!q) return status("このQRコードは品番が読み取れませんでした：" + text, "ng");
+  let m = master.find(x => x.code && x.code === q.code);
+  if (!m && q.name) { const n = normName(q.name); m = master.find(x => normName(x.name) === n); }
+  if (m) { $("linkBox").classList.add("hidden"); return addScanned(m, q.qty); }
+  pendingQr = q;
+  $("linkInfo").textContent = `品番 ${q.code}（${q.name || "品名なし"}・数量 ${q.qty.toLocaleString("ja-JP")}）はマスタに登録がありません。どの品名か選んでください。次からは自動で入ります。`;
+  $("linkName").innerHTML = `<option value="">品名を選ぶ</option>` + master.map((x, i) => `<option value="${i}">${esc(x.name)}</option>`).join("");
+  $("linkBox").classList.remove("hidden");
+  status("");
+  $("linkBox").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// カメラで連続読み取り
+let stream = null, scanning = false, detector = null;
+const scanCanvas = document.createElement("canvas");
+async function startScan() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return $("qrFile").click();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  } catch (e) {
+    status("カメラを使えませんでした。ブラウザの設定でカメラを許可してください。写真で読み取ることもできます。", "ng");
+    return $("qrFile").click();
+  }
+  try { if ("BarcodeDetector" in window && (await BarcodeDetector.getSupportedFormats()).includes("qr_code")) detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (_) { detector = null; }
+  const v = $("video");
+  v.srcObject = stream;
+  $("scanner").classList.remove("hidden");
+  await v.play().catch(() => {});
+  scanning = true;
+  scanLoop();
+}
+function stopScan() {
+  scanning = false;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  $("scanner").classList.add("hidden");
+}
+async function scanLoop() {
+  if (!scanning) return;
+  const v = $("video");
+  let text = null;
+  if (v.readyState >= 2 && v.videoWidth) {
+    try {
+      if (detector) {
+        const codes = await detector.detect(v);
+        if (codes.length) text = codes[0].rawValue;
+      } else if (typeof jsQR === "function") {
+        const sc = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
+        scanCanvas.width = Math.round(v.videoWidth * sc); scanCanvas.height = Math.round(v.videoHeight * sc);
+        const ctx = scanCanvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(v, 0, 0, scanCanvas.width, scanCanvas.height);
+        const r = jsQR(ctx.getImageData(0, 0, scanCanvas.width, scanCanvas.height).data, scanCanvas.width, scanCanvas.height, { inversionAttempts: "dontInvert" });
+        if (r) {
+          text = r.data;
+          if (!/品番/.test(text) && r.binaryData) { try { text = new TextDecoder("shift_jis").decode(new Uint8Array(r.binaryData)); } catch (_) {} }
+        }
+      }
+    } catch (_) {}
+  }
+  if (text && /品番/.test(text)) {
+    stopScan();
+    if (navigator.vibrate) navigator.vibrate(80);
+    return handleQrText(text);
+  }
+  setTimeout(scanLoop, 120);
+}
+$("scanBtn").onclick = startScan;
+$("scanClose").onclick = stopScan;
+document.addEventListener("visibilitychange", () => { if (document.hidden && scanning) stopScan(); });
+
+// 写真で読み取る（カメラが使えないとき）
+$("qrFile").onchange = () => {
+  const f = $("qrFile").files[0];
+  $("qrFile").value = "";
+  if (!f) return;
+  if (typeof jsQR !== "function") return status("QRの読み取り機能を読み込めませんでした。通信状態を確認してください。", "ng");
+  status("読み取っています…");
+  const url = URL.createObjectURL(f), img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const text = decodeQr(img);
+    if (!text) return status("QRコードが見つかりませんでした。QRコードが大きく写るように撮り直してください。", "ng");
+    handleQrText(text);
+  };
+  img.onerror = () => status("写真を読み込めませんでした。", "ng");
+  img.src = url;
+};
+$("linkSave").onclick = async () => {
+  const idx = $("linkName").value;
+  if (idx === "" || !pendingQr) return status("品名を選んでください。", "ng");
+  const name = master[+idx].name, q = pendingQr;
+  $("linkSave").disabled = true; status("登録しています…");
+  try {
+    setData(await run("linkCode", name, q.code));
+    $("linkBox").classList.add("hidden"); pendingQr = null;
+    addScanned(master.find(x => x.name === name), q.qty);
+  } catch (e) { status("登録できませんでした：" + errText(e), "ng"); }
+  finally { $("linkSave").disabled = false; }
+};
+
+function show(view) {
+  $("viewIn").classList.toggle("hidden", view !== "in");
+  $("viewPr").classList.toggle("hidden", view !== "pr");
+  $("tabIn").classList.toggle("on", view === "in");
+  $("tabPr").classList.toggle("on", view === "pr");
+}
+$("tabIn").onclick = () => show("in");
+$("tabPr").onclick = () => show("pr");
+$("addItem").onclick = itemRow;
+$("save").onclick = save;
+$("goPrint").onclick = () => { show("pr"); makePdf("nouhin", $("goPrint").dataset.key); };
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-kind]");
+  if (b) makePdf(b.dataset.kind, b.dataset.key, b);
+});
+
+(async () => {
+  const t = new Date();
+  $("date").value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+  try { $("tanto").value = localStorage.getItem("torque_tanto") || ""; } catch (_) {}
+  try {
+    setData(await run("getInit"));
+    status("");
+    itemRow();
+    renderPrintLists();
+  } catch (e) { status("読み込めませんでした：" + errText(e), "ng"); }
+})();
+</script>
+</body>
+</html>
