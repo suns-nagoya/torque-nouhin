@@ -106,10 +106,6 @@
       <h2>納品書</h2>
       <ul class="list" id="dateList"></ul>
     </div>
-    <div class="card">
-      <h2>請求書</h2>
-      <ul class="list" id="monthList"></ul>
-    </div>
   </section>
 </main>
 <div id="scanner" class="hidden">
@@ -159,16 +155,6 @@ function renderPrintLists() {
   $("dateList").innerHTML = dates.slice(0, 15).map(dt => {
     const rows = byDate[dt], sum = rows.reduce((a, r) => a + r.amount, 0);
     return `<li><div>${esc(dt)}<div class="meta">${rows.length}品目・${yen(sum)}</div></div><button data-kind="nouhin" data-key="${esc(dt)}">PDFを作る</button></li>`;
-  }).join("") || "<li>まだ納品がありません</li>";
-
-  const byMonth = {};
-  details.forEach(r => { if (r.date) { const k = r.date.slice(0, 7); (byMonth[k] ||= []).push(r); } });
-  const months = Object.keys(byMonth).sort().reverse();
-  $("monthList").innerHTML = months.slice(0, 12).map(k => {
-    const rows = byMonth[k], sum = rows.reduce((a, r) => a + r.amount, 0);
-    const days = new Set(rows.map(r => r.date)).size;
-    const [y, mo] = k.split("/");
-    return `<li><div>${y}年${+mo}月分<div class="meta">納品${days}回・${yen(sum)}</div></div><button data-kind="seikyu" data-key="${esc(k)}">PDFを作る</button></li>`;
   }).join("") || "<li>まだ納品がありません</li>";
 
   const noDate = details.filter(r => !r.date).length;
