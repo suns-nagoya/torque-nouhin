@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>トルク 納品書・請求書</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="トルク納品">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#33475b">
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   :root { --ink:#1f2933; --sub:#616e7c; --line:#d9dee3; --bg:#f5f7f9; --accent:#33475b; --ok:#1f7a4d; --ng:#b42318; }
@@ -110,8 +115,11 @@
 <div id="scanner" class="hidden">
   <video id="video" playsinline muted autoplay></video>
   <div class="frame"></div>
-  <p class="hint">QRコードを枠の中に写してください</p>
-  <button class="btn ghost" id="scanClose">閉じる</button>
+  <p class="hint" id="scanHint">QRコードを枠の中に写してください</p>
+  <div style="position:relative;display:flex;gap:10px">
+    <button class="btn ghost" id="scanPhoto">写真で読む</button>
+    <button class="btn ghost" id="scanClose">閉じる</button>
+  </div>
 </div>
 
 <script>
@@ -297,12 +305,12 @@ function handleQrText(text) {
 }
 
 // カメラで連続読み取り
-let stream = null, scanning = false, detector = null;
+let stream = null, scanning = false, detector = null, scanTick = 0, scanStart = 0;
 const scanCanvas = document.createElement("canvas");
 async function startScan() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return $("qrFile").click();
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   } catch (e) {
     status("カメラを使えませんでした。ブラウザの設定でカメラを許可してください。写真で読み取ることもできます。", "ng");
     return $("qrFile").click();
@@ -312,7 +320,8 @@ async function startScan() {
   v.srcObject = stream;
   $("scanner").classList.remove("hidden");
   await v.play().catch(() => {});
-  scanning = true;
+  scanning = true; scanStart = Date.now();
+  $("scanHint").textContent = "QRコードを枠の中に写してください";
   scanLoop();
 }
 function stopScan() {
@@ -331,11 +340,20 @@ async function scanLoop() {
         const codes = await detector.detect(v);
         if (codes.length) text = codes[0].rawValue;
       } else if (typeof jsQR === "function") {
-        const sc = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
-        scanCanvas.width = Math.round(v.videoWidth * sc); scanCanvas.height = Math.round(v.videoHeight * sc);
+        // 枠のあたり（中央の正方形）を縮小せずに切り出して読む。見つからなければ全体を縮小して読む
+        const vw = v.videoWidth, vh = v.videoHeight;
+        const side = Math.round(Math.min(vw, vh) * 0.8);
+        const out = Math.min(side, 1000);
+        scanCanvas.width = out; scanCanvas.height = out;
         const ctx = scanCanvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(v, 0, 0, scanCanvas.width, scanCanvas.height);
-        const r = jsQR(ctx.getImageData(0, 0, scanCanvas.width, scanCanvas.height).data, scanCanvas.width, scanCanvas.height, { inversionAttempts: "dontInvert" });
+        ctx.drawImage(v, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
+        let r = jsQR(ctx.getImageData(0, 0, out, out).data, out, out, { inversionAttempts: "dontInvert" });
+        if (!r && (scanTick++ % 3 === 0)) {
+          const sc = Math.min(1, 1280 / Math.max(vw, vh));
+          scanCanvas.width = Math.round(vw * sc); scanCanvas.height = Math.round(vh * sc);
+          ctx.drawImage(v, 0, 0, scanCanvas.width, scanCanvas.height);
+          r = jsQR(ctx.getImageData(0, 0, scanCanvas.width, scanCanvas.height).data, scanCanvas.width, scanCanvas.height, { inversionAttempts: "dontInvert" });
+        }
         if (r) {
           text = r.data;
           if (!/品番/.test(text) && r.binaryData) { try { text = new TextDecoder("shift_jis").decode(new Uint8Array(r.binaryData)); } catch (_) {} }
@@ -348,10 +366,12 @@ async function scanLoop() {
     if (navigator.vibrate) navigator.vibrate(80);
     return handleQrText(text);
   }
-  setTimeout(scanLoop, 120);
+  if (Date.now() - scanStart > 8000) $("scanHint").textContent = "読めないときは、QRを枠いっぱいに近づけるか「写真で読む」を押してください";
+  setTimeout(scanLoop, 100);
 }
 $("scanBtn").onclick = startScan;
 $("scanClose").onclick = stopScan;
+$("scanPhoto").onclick = () => { stopScan(); $("qrFile").click(); };
 document.addEventListener("visibilitychange", () => { if (document.hidden && scanning) stopScan(); });
 
 // 写真で読み取る（カメラが使えないとき）
