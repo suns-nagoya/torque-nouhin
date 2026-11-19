@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>トルク 管理画面</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="トルク管理">
+<meta name="theme-color" content="#33475b">
+<meta name="robots" content="noindex">
+<style>
+  :root { --ink:#1f2933; --sub:#616e7c; --line:#d9dee3; --bg:#f5f7f9; --accent:#33475b; --ok:#1f7a4d; --ng:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color:var(--ink); background:var(--bg); font-size:16px; }
+  header { background:var(--accent); color:#fff; padding:14px 16px; }
+  header h1 { margin:0; font-size:17px; font-weight:600; }
+  nav { display:flex; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
+  nav button { flex:1; border:0; background:none; padding:13px 0; font-size:16px; color:var(--sub); border-bottom:3px solid transparent; }
+  nav button.on { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  main { padding:14px; max-width:640px; margin:0 auto; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--sub); margin-bottom:4px; }
+  input, select { width:100%; font-size:16px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+  .row2 { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:10px; }
+  .row2 > div { min-width:0; }
+  input, select { height:46px; min-width:0; display:block; margin:0; }
+  input[type="date"] { -webkit-appearance:none; appearance:none; text-align:left; line-height:24px; }
+  input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
+  .item { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+  .item:first-child { border-top:0; padding-top:0; margin-top:0; }
+  .itemhead { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; color:var(--sub); }
+  .del { border:0; background:none; color:var(--ng); font-size:14px; padding:4px 0; }
+  .qtyline { display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:end; margin-top:8px; }
+  .amount { font-size:15px; min-width:96px; text-align:right; padding-bottom:10px; }
+  .btn { display:block; width:100%; border:0; border-radius:8px; padding:13px; font-size:16px; font-weight:600; text-align:center; text-decoration:none; }
+  .primary { background:var(--accent); color:#fff; }
+  .ghost { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  .btn:disabled { opacity:.5; }
+  .total { display:flex; justify-content:space-between; font-size:17px; font-weight:600; margin:4px 0 12px; }
+  .msg { padding:10px 12px; border-radius:8px; font-size:14px; margin-bottom:12px; }
+  .msg.ok { background:#e8f5ee; color:var(--ok); }
+  .msg.ng { background:#fdecea; color:var(--ng); }
+  .msg.info { background:#eef2f6; color:var(--ink); }
+  .list { list-style:none; margin:0; padding:0; }
+  .list li { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 0; border-top:1px solid var(--line); }
+  .list li:first-child { border-top:0; }
+  .list .meta { font-size:13px; color:var(--sub); }
+  .list button, .list a { flex:none; font-size:14px; padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--accent); text-decoration:none; }
+  .list a { background:var(--accent); color:#fff; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  .hidden { display:none !important; }
+  .pw { font-size:28px; letter-spacing:12px; text-align:center; height:56px; }
+</style>
+</head>
+<body>
+<header><h1>トルク株式会社　管理画面</h1></header>
+<main>
+  <div id="status" class="msg info hidden"></div>
+
+  <section id="login" class="card">
+    <h2>パスワードを入れてください</h2>
+    <input type="password" id="pw" class="pw" inputmode="numeric" maxlength="8" autocomplete="off">
+    <button class="btn primary" id="loginBtn" style="margin-top:12px">開く</button>
+  </section>
+
+  <section id="main" class="hidden">
+    <div id="prepared" class="card hidden">
+      <h2 id="preparedTitle"></h2>
+      <a class="btn primary" id="pdfLink" href="#" target="_blank">PDFを開く</a>
+      <p style="font-size:13px;color:var(--sub);margin:8px 0 0">開いたPDFを共有メニューの「プリント」から印刷、またはFAX・メールで送ってください。翌月5日までに送付。</p>
+    </div>
+    <div id="noDate" class="msg info hidden"></div>
+    <div class="card">
+      <h2>請求書</h2>
+      <ul class="list" id="monthList"></ul>
+    </div>
+  </section>
+</main>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbwHlrlr6DclNr8q0WrQD02_jIJSSmIw8kb_ozO84XBPbkv_1zm_gV1koJBr4UHWarhX/exec";
+const $ = (id) => document.getElementById(id);
+const yen = (n) => "¥" + Math.round(n).toLocaleString("ja-JP");
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let pw = "", details = [], lastUrl = null;
+
+function status(text, kind = "info") {
+  const el = $("status");
+  if (!text) { el.classList.add("hidden"); return; }
+  el.className = "msg " + kind; el.textContent = text;
+}
+async function run(fn, ...args) {
+  let r;
+  try {
+    r = await fetch(API, { method: "POST", body: JSON.stringify({ fn, args }) });
+  } catch (_) { throw new Error("通信できませんでした。電波の良い場所でもう一度お試しください。"); }
+  const j = await r.json().catch(() => ({ ok: false, error: "サーバーの応答を読めませんでした" }));
+  if (!j.ok) throw new Error(j.error || "エラーが起きました");
+  return j.data;
+}
+const errText = (e) => String((e && e.message) || e);
+
+async function login(value, silent) {
+  $("loginBtn").disabled = true;
+  if (!silent) status("確認しています…");
+  try {
+    if (!(await run("checkPw", value))) {
+      try { sessionStorage.removeItem("torque_pw"); } catch (_) {}
+      return status("パスワードが違います。", "ng");
+    }
+    pw = value;
+    try { sessionStorage.setItem("torque_pw", value); } catch (_) {}
+    $("login").classList.add("hidden");
+    $("main").classList.remove("hidden");
+    status("読み込んでいます…");
+    details = (await run("getInit")).details;
+    status("");
+    render();
+  } catch (e) { status(errText(e), "ng"); }
+  finally { $("loginBtn").disabled = false; }
+}
+
+function render() {
+  const byMonth = {};
+  details.forEach(r => { if (r.date) { const k = r.date.slice(0, 7); (byMonth[k] ||= []).push(r); } });
+  const months = Object.keys(byMonth).sort().reverse();
+  $("monthList").innerHTML = months.slice(0, 12).map(k => {
+    const rows = byMonth[k], sum = rows.reduce((a, r) => a + r.amount, 0);
+    const days = new Set(rows.map(r => r.date)).size;
+    const [y, mo] = k.split("/");
+    return `<li><div>${y}年${+mo}月分<div class="meta">納品${days}回・${rows.length}品目・${yen(sum)}</div></div><button data-key="${esc(k)}">PDFを作る</button></li>`;
+  }).join("") || "<li>まだ納品がありません</li>";
+  const noDate = details.filter(r => !r.date).length;
+  $("noDate").classList.toggle("hidden", !noDate);
+  $("noDate").textContent = noDate ? `納品日が入っていない明細が${noDate}件あります。請求書に入らないので、スプレッドシートの「納品明細」で納品日を入れてください。` : "";
+}
+
+async function makePdf(key) {
+  $("prepared").classList.add("hidden");
+  document.querySelectorAll("button[data-key]").forEach(b => b.disabled = true);
+  status("PDFを作っています…（10秒ほどかかります）");
+  try {
+    const r = await run("makePdf", "seikyu", key, pw);
+    const bin = atob(r.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const [y, mo] = key.split("/");
+    $("preparedTitle").textContent = `請求書　${y}年${+mo}月分`;
+    $("pdfLink").href = lastUrl;
+    $("prepared").classList.remove("hidden");
+    status("");
+    $("prepared").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { status("PDFを作れませんでした：" + errText(e), "ng"); }
+  finally { document.querySelectorAll("button[data-key]").forEach(b => b.disabled = false); }
+}
+
+$("loginBtn").onclick = () => login($("pw").value.trim());
+$("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") login($("pw").value.trim()); });
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-key]");
+  if (b) makePdf(b.dataset.key);
+});
+try { const saved = sessionStorage.getItem("torque_pw"); if (saved) login(saved, true); } catch (_) {}
+</script>
+</body>
+</html>
