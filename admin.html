@@ -134,6 +134,9 @@ function render() {
   const noDate = details.filter(r => !r.date).length;
   $("noDate").classList.toggle("hidden", !noDate);
   $("noDate").textContent = noDate ? `納品日が入っていない明細が${noDate}件あります。請求書に入らないので、スプレッドシートの「納品明細」で納品日を入れてください。` : "";
+  const noPrice = details.filter(r => r.qty > 0 && !r.amount).length;
+  const np = noPrice ? `単価が決まっていない明細が${noPrice}件あります（職員が手入力した新しい品目など）。金額が0円になるので、スプレッドシートの「マスタ設定」の単価、または「納品明細」のD列（単価）を入れてください。` : "";
+  if (np) { $("noDate").classList.remove("hidden"); $("noDate").textContent = ($("noDate").textContent ? $("noDate").textContent + "\n" : "") + np; $("noDate").style.whiteSpace = "pre-line"; }
 }
 
 async function makePdf(key) {
