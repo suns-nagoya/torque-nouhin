@@ -80,7 +80,11 @@
       <h2>はじめての品番です</h2>
       <p id="linkInfo" style="font-size:14px;margin:0 0 8px"></p>
       <select id="linkName"></select>
-      <button class="btn primary" id="linkSave" style="margin-top:10px">この品名で登録して追加</button>
+      <div id="linkNew" class="hidden">
+        <div style="margin-top:8px"><label>品名（箱のシールの通りに）</label><input id="linkNewName" type="text"></div>
+        <div style="margin-top:8px"><label>単価（わからなければ空欄）</label><input id="linkNewPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="空欄でOK"></div>
+      </div>
+      <button class="btn primary" id="linkSave" style="margin-top:10px">登録して追加</button>
     </div>
     <div class="card">
       <h2>品目</h2>
@@ -175,7 +179,8 @@ function itemRow() {
     <div class="qtyline">
       <div><label>数量<span class="unitprice"></span></label><input class="qty" type="number" inputmode="numeric" min="0" placeholder="0"></div>
       <div class="amount">¥0</div>
-    </div>`;
+    </div>
+    <div class="qrnote hidden" style="font-size:13px;color:var(--ng);margin-top:6px"></div>`;
   div.querySelector(".del").onclick = () => { div.remove(); refresh(); };
   div.querySelector(".name").onchange = () => {
     const isNew = div.querySelector(".name").value === "new";
@@ -284,26 +289,58 @@ function decodeQr(img) {
 }
 function addScanned(m, qty) {
   const already = readItems().some(it => it.m && it.m.name === m.name);
-  if (already) return status(`「${m.name}」はもう入っています。数量を確認してください。`, "info");
+  if (already) {
+    const r = readItems().find(it => it.m && it.m.name === m.name);
+    r.div.scrollIntoView({ behavior: "smooth", block: "center" });
+    return status(`「${m.name}」はもう入っています。数量を確認してください。`, "info");
+  }
   let row = readItems().find(it => !it.m && !(it.qty > 0));
   if (!row) { itemRow(); row = readItems().pop(); }
   row.div.querySelector(".name").value = String(master.indexOf(m));
-  row.div.querySelector(".qty").value = qty || "";
+  const qi = row.div.querySelector(".qty");
+  qi.value = qty || "";
+  const note = row.div.querySelector(".qrnote");
+  note.textContent = `QRの数量は${(qty || 0).toLocaleString("ja-JP")}${m.unit}です。実際の数が違うときは数量を直してください。`;
+  note.classList.remove("hidden");
   refresh();
   status(`読み取りました：${m.name}　${(qty || 0).toLocaleString("ja-JP")}${m.unit}`, "ok");
+  row.div.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => { qi.focus(); qi.select(); }, 300);
 }
 function handleQrText(text) {
   const q = parseQr(text);
   if (!q) return status("このQRコードは品番が読み取れませんでした：" + text, "ng");
   let m = master.find(x => x.code && x.code === q.code);
   if (!m && q.name) { const n = normName(q.name); m = master.find(x => normName(x.name) === n); }
-  if (m) { $("linkBox").classList.add("hidden"); return addScanned(m, q.qty); }
+  if (m) {
+    $("linkBox").classList.add("hidden");
+    if (!m.code) run("linkCode", m.name, q.code).then(setData).catch(() => {}); // 品名だけ一致したときは品番も覚えておく
+    return addScanned(m, q.qty);
+  }
+  const qrName = String(q.name || "").normalize("NFKC").replace(/\s+/g, " ").replace(/(\d)\s*[xX]\s*(\d)/g, "$1×$2").trim();
+  if (qrName) return autoRegister(q, qrName);
+  // QRに品名がないときだけ、品名を入れてもらう
   pendingQr = q;
-  $("linkInfo").textContent = `品番 ${q.code}（${q.name || "品名なし"}・数量 ${q.qty.toLocaleString("ja-JP")}）はマスタに登録がありません。どの品名か選んでください。次からは自動で入ります。`;
-  $("linkName").innerHTML = `<option value="">品名を選ぶ</option>` + master.map((x, i) => `<option value="${i}">${esc(x.name)}</option>`).join("");
+  $("linkInfo").textContent = `品番 ${q.code}（数量 ${q.qty.toLocaleString("ja-JP")}）は初めての品番で、QRに品名がありません。品名を入れてください。次からは自動で入ります。`;
+  $("linkName").innerHTML = `<option value="new">＋ 新しい品目として登録する</option>` + master.map((x, i) => `<option value="${i}">${esc(x.name)}</option>`).join("");
+  $("linkName").value = "new";
+  $("linkNewName").value = "";
+  $("linkNewPrice").value = "";
+  $("linkNew").classList.remove("hidden");
   $("linkBox").classList.remove("hidden");
   status("");
   $("linkBox").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+// 初めての品番：QRの品名でマスタに登録して、そのまま品目に入れる（単価は空欄。管理側があとで入れる）
+async function autoRegister(q, name) {
+  status("初めての品番です。登録しています…");
+  try {
+    setData(await run("linkCode", name, q.code, { create: true }));
+    $("linkBox").classList.add("hidden");
+    const m = master.find(x => x.name === name);
+    addScanned(m, q.qty);
+    status(`初めての品番を登録して入れました：${name}　${(q.qty || 0).toLocaleString("ja-JP")}${m.unit}（単価は管理側があとで入れます）`, "ok");
+  } catch (e) { status("登録できませんでした：" + errText(e), "ng"); }
 }
 
 // カメラで連続読み取り
@@ -393,13 +430,16 @@ $("qrFile").onchange = () => {
   img.onerror = () => status("写真を読み込めませんでした。", "ng");
   img.src = url;
 };
+$("linkName").onchange = () => $("linkNew").classList.toggle("hidden", $("linkName").value !== "new");
 $("linkSave").onclick = async () => {
-  const idx = $("linkName").value;
-  if (idx === "" || !pendingQr) return status("品名を選んでください。", "ng");
-  const name = master[+idx].name, q = pendingQr;
+  const idx = $("linkName").value, q = pendingQr;
+  if (idx === "" || !q) return status("品名を選んでください。", "ng");
+  const isNew = idx === "new";
+  const name = isNew ? $("linkNewName").value.normalize("NFKC").replace(/\s+/g, " ").trim() : master[+idx].name;
+  if (!name) return status("品名を入れてください。", "ng");
   $("linkSave").disabled = true; status("登録しています…");
   try {
-    setData(await run("linkCode", name, q.code));
+    setData(await run("linkCode", name, q.code, isNew ? { create: true, price: num($("linkNewPrice").value) } : null));
     $("linkBox").classList.add("hidden"); pendingQr = null;
     addScanned(master.find(x => x.name === name), q.qty);
   } catch (e) { status("登録できませんでした：" + errText(e), "ng"); }
