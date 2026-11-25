@@ -147,9 +147,17 @@ async function run(fn, ...args) {
   return j.data;
 }
 const errText = (e) => String((e && e.message) || e);
+const nameOptions = () => `<option value="">品名を選ぶ</option>${master.map((m, i) => `<option value="${i}">${esc(m.name)}</option>`).join("")}<option value="new">＋ 一覧にない品目（手入力）</option>`;
 function setData(d) {
+  // マスタが変わったら、入力中の品目の選択肢も作り直す（選んでいた品名はそのまま）
+  const keep = [...document.querySelectorAll(".item .name")].map(sel => sel.value === "" || sel.value === "new" ? sel.value : (master[+sel.value] || {}).name);
   master = d.master;
   details = d.details;
+  document.querySelectorAll(".item .name").forEach((sel, k) => {
+    const v = keep[k];
+    sel.innerHTML = nameOptions();
+    sel.value = v === "" || v === "new" ? v : String(master.findIndex(x => x.name === v));
+  });
 }
 
 function renderPrintLists() {
@@ -171,7 +179,7 @@ function itemRow() {
   div.className = "item";
   div.innerHTML = `
     <div class="itemhead"><span class="no"></span><button class="del" type="button">削除</button></div>
-    <select class="name"><option value="">品名を選ぶ</option>${master.map((m, i) => `<option value="${i}">${esc(m.name)}</option>`).join("")}<option value="new">＋ 一覧にない品目（手入力）</option></select>
+    <select class="name">${nameOptions()}</select>
     <div class="newbox hidden">
       <div style="margin-top:8px"><label>品名（箱のシールの通りに）</label><input class="newname" type="text" placeholder="例：ユニクロ六角全ネジ N・SW付 16×30"></div>
       <div style="margin-top:8px"><label>単価（わからなければ空欄）</label><input class="newprice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="空欄でOK"></div>
