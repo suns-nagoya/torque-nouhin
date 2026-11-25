@@ -50,11 +50,30 @@
   .list a { background:var(--accent); color:#fff; }
   h2 { font-size:15px; margin:0 0 10px; }
   .hidden { display:none !important; }
+  .drow { border-top:1px solid var(--line); padding:10px 0; }
+  .drow:first-child { border-top:0; }
+  .dhead { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .dhead .meta { font-size:13px; color:var(--sub); }
+  .dhead button { flex:none; font-size:14px; padding:8px 12px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--accent); }
+  .warn { color:var(--ng); }
+  .form { margin-top:10px; display:grid; gap:8px; }
+  .btns { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; }
+  .btns .btn { padding:11px 6px; font-size:15px; }
+  .danger { background:#fff; color:var(--ng); border:1px solid var(--ng); }
+  .prow { display:grid; grid-template-columns: minmax(0,1fr) 92px 64px; gap:8px; align-items:center; padding:8px 0; border-top:1px solid var(--line); font-size:14px; }
+  .prow:first-child { border-top:0; }
+  .prow input { height:40px; padding:6px 8px; }
+  .prow button { height:40px; font-size:14px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--accent); }
   .pw { font-size:28px; letter-spacing:12px; text-align:center; height:56px; }
 </style>
 </head>
 <body>
 <header><h1>トルク株式会社　管理画面</h1></header>
+<nav id="nav" class="hidden">
+  <button data-tab="seikyu" class="on">請求書</button>
+  <button data-tab="meisai">明細の編集</button>
+  <button data-tab="tanka">単価</button>
+</nav>
 <main>
   <div id="status" class="msg info hidden"></div>
 
@@ -64,7 +83,7 @@
     <button class="btn primary" id="loginBtn" style="margin-top:12px">開く</button>
   </section>
 
-  <section id="main" class="hidden">
+  <section id="main" class="hidden" data-view="seikyu">
     <div id="prepared" class="card hidden">
       <h2 id="preparedTitle"></h2>
       <a class="btn primary" id="pdfLink" href="#" target="_blank">PDFを開く</a>
@@ -76,6 +95,26 @@
       <ul class="list" id="monthList"></ul>
     </div>
   </section>
+
+  <section id="meisai" class="hidden" data-view="meisai">
+    <div class="card">
+      <label for="mMonth">表示する月</label>
+      <select id="mMonth"></select>
+    </div>
+    <div class="card">
+      <h2>明細</h2>
+      <p style="font-size:13px;color:var(--sub);margin:0 0 6px">「直す」を押すと、納品日・品名・数量・単価・担当者・備考を変えられます。単価を空欄にすると、マスタの単価で計算します。</p>
+      <div id="mList"></div>
+    </div>
+  </section>
+
+  <section id="tanka" class="hidden" data-view="tanka">
+    <div class="card">
+      <h2>品目ごとの単価（マスタ）</h2>
+      <p style="font-size:13px;color:var(--sub);margin:0 0 6px">ここで変えると、単価を個別に決めていない明細（明細の単価が空欄のもの）の金額も変わります。単価が空欄の品目は赤字です。</p>
+      <div id="pList"></div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -83,7 +122,9 @@ const API = "https://script.google.com/macros/s/AKfycbwHlrlr6DclNr8q0WrQD02_jIJS
 const $ = (id) => document.getElementById(id);
 const yen = (n) => "¥" + Math.round(n).toLocaleString("ja-JP");
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let pw = "", details = [], lastUrl = null;
+let pw = "", details = [], lastUrl = null, adm = { rows: [], master: [] }, openRow = null;
+const fmtDate = (iso) => { if (!iso) return "納品日なし"; const [y, m, d] = iso.split("-"); return `${y}/${m}/${d}`; };
+const num = (s) => { const v = parseFloat(String(s ?? "").replace(/[¥,\s]/g, "")); return isNaN(v) ? 0 : v; };
 
 function status(text, kind = "info") {
   const el = $("status");
@@ -112,11 +153,11 @@ async function login(value, silent) {
     pw = value;
     try { sessionStorage.setItem("torque_pw", value); } catch (_) {}
     $("login").classList.add("hidden");
-    $("main").classList.remove("hidden");
+    $("nav").classList.remove("hidden");
+    show("seikyu");
     status("読み込んでいます…");
-    details = (await run("getInit")).details;
+    setAdm(await run("adminData", pw));
     status("");
-    render();
   } catch (e) { status(errText(e), "ng"); }
   finally { $("loginBtn").disabled = false; }
 }
@@ -133,10 +174,89 @@ function render() {
   }).join("") || "<li>まだ納品がありません</li>";
   const noDate = details.filter(r => !r.date).length;
   $("noDate").classList.toggle("hidden", !noDate);
-  $("noDate").textContent = noDate ? `納品日が入っていない明細が${noDate}件あります。請求書に入らないので、スプレッドシートの「納品明細」で納品日を入れてください。` : "";
+  $("noDate").textContent = noDate ? `納品日が入っていない明細が${noDate}件あります。請求書に入らないので、「明細の編集」で納品日を入れてください。` : "";
   const noPrice = details.filter(r => r.qty > 0 && !r.amount).length;
-  const np = noPrice ? `単価が決まっていない明細が${noPrice}件あります（職員が手入力した新しい品目など）。金額が0円になるので、スプレッドシートの「マスタ設定」の単価、または「納品明細」のD列（単価）を入れてください。` : "";
+  const np = noPrice ? `単価が決まっていない明細が${noPrice}件あります（新しい品目など）。金額が0円になるので、「単価」タブで単価を入れてください。` : "";
   if (np) { $("noDate").classList.remove("hidden"); $("noDate").textContent = ($("noDate").textContent ? $("noDate").textContent + "\n" : "") + np; $("noDate").style.whiteSpace = "pre-line"; }
+}
+
+// 管理データ（行番号つきの明細とマスタ）を受け取って、3つの画面を描き直す
+function setAdm(d) {
+  adm = d;
+  details = d.rows.map(r => ({ date: r.date ? r.date.replace(/-/g, "/") : "", name: r.name, qty: r.qty, amount: r.amount }));
+  render();
+  renderMeisai();
+  renderTanka();
+}
+function show(tab) {
+  document.querySelectorAll("section[data-view]").forEach(s => s.classList.toggle("hidden", s.dataset.view !== tab));
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+}
+
+function renderMeisai() {
+  const months = [...new Set(adm.rows.map(r => r.date ? r.date.slice(0, 7) : "none"))].sort((x, y) => x === "none" ? 1 : y === "none" ? -1 : y.localeCompare(x));
+  const cur = $("mMonth").value;
+  $("mMonth").innerHTML = months.map(k => `<option value="${k}">${k === "none" ? "納品日なし" : `${k.slice(0, 4)}年${+k.slice(5)}月`}</option>`).join("");
+  if (months.includes(cur)) $("mMonth").value = cur;
+  const k = $("mMonth").value;
+  const rows = adm.rows.filter(r => (r.date ? r.date.slice(0, 7) : "none") === k).sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.row - b.row);
+  $("mList").innerHTML = rows.map(r => {
+    const p = r.price === "" ? (r.unitPrice === "" ? "単価未定" : `単価${r.unitPrice}（マスタ）`) : `単価${r.price}`;
+    const warn = r.unitPrice === "" ? " warn" : "";
+    return `<div class="drow" data-row="${r.row}">
+      <div class="dhead"><div>${esc(fmtDate(r.date))}　${esc(r.name)}<div class="meta${warn}">${r.qty.toLocaleString("ja-JP")}・${esc(p)}・${yen(r.amount)}${r.tanto ? "・" + esc(r.tanto) : ""}${r.note ? "・" + esc(r.note) : ""}</div></div><button data-edit="${r.row}">直す</button></div>
+      ${openRow === r.row ? editForm(r) : ""}
+    </div>`;
+  }).join("") || "<p>この月の明細はありません</p>";
+}
+function editForm(r) {
+  const names = [...new Set([r.name, ...adm.master.map(m => m.name)])];
+  return `<div class="form">
+    <div class="row2"><div><label>納品日</label><input type="date" class="fDate" value="${esc(r.date)}"></div><div><label>数量</label><input type="number" inputmode="numeric" class="fQty" value="${r.qty}"></div></div>
+    <div><label>品名</label><select class="fName">${names.map(n => `<option ${n === r.name ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
+    <div class="row2"><div><label>単価（空欄ならマスタ）</label><input type="number" inputmode="decimal" step="0.1" class="fPrice" value="${r.price === "" ? "" : r.price}" placeholder="マスタの単価"></div><div><label>担当者</label><input type="text" class="fTanto" value="${esc(r.tanto)}"></div></div>
+    <div><label>備考</label><input type="text" class="fNote" value="${esc(r.note)}"></div>
+    <div class="btns"><button class="btn primary" data-save="${r.row}">保存</button><button class="btn ghost" data-cancel="1">やめる</button><button class="btn danger" data-delete="${r.row}">削除</button></div>
+  </div>`;
+}
+async function saveRow(row) {
+  const r = adm.rows.find(x => x.row === row), box = document.querySelector(`.drow[data-row="${row}"]`);
+  const f = {
+    date: box.querySelector(".fDate").value, name: box.querySelector(".fName").value,
+    qty: num(box.querySelector(".fQty").value), price: box.querySelector(".fPrice").value.trim() === "" ? "" : num(box.querySelector(".fPrice").value),
+    tanto: box.querySelector(".fTanto").value.trim(), note: box.querySelector(".fNote").value.trim()
+  };
+  if (!f.date) return status("納品日を入れてください。", "ng");
+  if (!(f.qty > 0)) return status("数量を入れてください。", "ng");
+  status("保存しています…");
+  try {
+    openRow = null;
+    setAdm(await run("updateDetail", pw, row, r.name, f));
+    if (f.date) $("mMonth").value = f.date.slice(0, 7), renderMeisai();
+    status("保存しました。", "ok");
+  } catch (e) { status("保存できませんでした：" + errText(e), "ng"); }
+}
+async function deleteRow(row) {
+  const r = adm.rows.find(x => x.row === row);
+  if (!confirm(`${fmtDate(r.date)}　${r.name}　${r.qty}を削除します。元に戻せません。よろしいですか？`)) return;
+  status("削除しています…");
+  try {
+    openRow = null;
+    setAdm(await run("deleteDetail", pw, row, r.name));
+    status("削除しました。", "ok");
+  } catch (e) { status("削除できませんでした：" + errText(e), "ng"); }
+}
+
+function renderTanka() {
+  $("pList").innerHTML = adm.master.map((m, i) => `<div class="prow"><div class="${m.price ? "" : "warn"}">${esc(m.name)}</div><input type="number" inputmode="decimal" step="0.1" min="0" value="${m.price || ""}" placeholder="未定" data-pi="${i}"><button data-pset="${i}">保存</button></div>`).join("");
+}
+async function savePrice(i) {
+  const m = adm.master[i], v = document.querySelector(`input[data-pi="${i}"]`).value.trim();
+  status("保存しています…");
+  try {
+    setAdm(await run("setMasterPrice", pw, m.name, v === "" ? "" : num(v)));
+    status(`「${m.name}」の単価を${v === "" ? "空欄" : v + "円"}にしました。`, "ok");
+  } catch (e) { status("保存できませんでした：" + errText(e), "ng"); }
 }
 
 async function makePdf(key) {
@@ -162,9 +282,17 @@ async function makePdf(key) {
 $("loginBtn").onclick = () => login($("pw").value.trim());
 $("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") login($("pw").value.trim()); });
 document.addEventListener("click", (ev) => {
-  const b = ev.target.closest("button[data-key]");
-  if (b) makePdf(b.dataset.key);
+  const b = ev.target.closest("button");
+  if (!b) return;
+  if (b.dataset.key) makePdf(b.dataset.key);
+  else if (b.dataset.tab) show(b.dataset.tab);
+  else if (b.dataset.edit) { openRow = +b.dataset.edit; renderMeisai(); }
+  else if (b.dataset.cancel) { openRow = null; renderMeisai(); }
+  else if (b.dataset.save) saveRow(+b.dataset.save);
+  else if (b.dataset.delete) deleteRow(+b.dataset.delete);
+  else if (b.dataset.pset) savePrice(+b.dataset.pset);
 });
+$("mMonth").onchange = () => { openRow = null; renderMeisai(); };
 try { const saved = sessionStorage.getItem("torque_pw"); if (saved) login(saved, true); } catch (_) {}
 </script>
 </body>
