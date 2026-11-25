@@ -167,13 +167,24 @@ function itemRow() {
   div.className = "item";
   div.innerHTML = `
     <div class="itemhead"><span class="no"></span><button class="del" type="button">削除</button></div>
-    <select class="name"><option value="">品名を選ぶ</option>${master.map((m, i) => `<option value="${i}">${esc(m.name)}</option>`).join("")}</select>
+    <select class="name"><option value="">品名を選ぶ</option>${master.map((m, i) => `<option value="${i}">${esc(m.name)}</option>`).join("")}<option value="new">＋ 一覧にない品目（手入力）</option></select>
+    <div class="newbox hidden">
+      <div style="margin-top:8px"><label>品名（箱のシールの通りに）</label><input class="newname" type="text" placeholder="例：ユニクロ六角全ネジ N・SW付 16×30"></div>
+      <div style="margin-top:8px"><label>単価（わからなければ空欄）</label><input class="newprice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="空欄でOK"></div>
+    </div>
     <div class="qtyline">
       <div><label>数量<span class="unitprice"></span></label><input class="qty" type="number" inputmode="numeric" min="0" placeholder="0"></div>
       <div class="amount">¥0</div>
     </div>`;
   div.querySelector(".del").onclick = () => { div.remove(); refresh(); };
-  div.querySelector(".name").onchange = refresh;
+  div.querySelector(".name").onchange = () => {
+    const isNew = div.querySelector(".name").value === "new";
+    div.querySelector(".newbox").classList.toggle("hidden", !isNew);
+    if (isNew) div.querySelector(".newname").focus();
+    refresh();
+  };
+  div.querySelector(".newname").oninput = refresh;
+  div.querySelector(".newprice").oninput = refresh;
   div.querySelector(".qty").oninput = refresh;
   $("items").appendChild(div);
   refresh();
@@ -181,7 +192,12 @@ function itemRow() {
 function readItems() {
   return [...document.querySelectorAll(".item")].map(div => {
     const idx = div.querySelector(".name").value;
-    return { div, m: idx === "" ? null : master[+idx], qty: num(div.querySelector(".qty").value) };
+    let m = null;
+    if (idx === "new") {
+      const name = div.querySelector(".newname").value.normalize("NFKC").replace(/\s+/g, " ").trim();
+      if (name) m = { name, price: num(div.querySelector(".newprice").value), unit: "本", isNew: true };
+    } else if (idx !== "") m = master[+idx];
+    return { div, m, qty: num(div.querySelector(".qty").value) };
   });
 }
 function refresh() {
@@ -192,7 +208,7 @@ function refresh() {
     it.div.querySelector(".del").style.visibility = all.length > 1 ? "visible" : "hidden";
     const amt = it.m ? Math.round(it.qty * it.m.price) : 0;
     sum += amt;
-    it.div.querySelector(".unitprice").textContent = it.m ? `（${it.m.unit}・単価${it.m.price}円）` : "";
+    it.div.querySelector(".unitprice").textContent = it.m ? (it.m.price ? `（${it.m.unit}・単価${it.m.price}円）` : `（${it.m.unit}・単価未定）`) : "";
     it.div.querySelector(".amount").textContent = yen(amt);
   });
   $("sum").textContent = yen(sum);
@@ -207,7 +223,7 @@ async function save() {
   const date = dateIso.replace(/-/g, "/");
   $("save").disabled = true; status("保存しています…");
   try {
-    setData(await run("saveDelivery", date, tanto, items.map(it => ({ name: it.m.name, qty: it.qty, price: it.m.price }))));
+    setData(await run("saveDelivery", date, tanto, items.map(it => ({ name: it.m.name, qty: it.qty, price: it.m.price, unit: it.m.unit, isNew: !!it.m.isNew }))));
     status("");
     $("savedMsg").textContent = `${jpDate(date)}の納品を${items.length}品目保存しました。`;
     $("saved").classList.remove("hidden");
@@ -267,7 +283,7 @@ function decodeQr(img) {
   return null;
 }
 function addScanned(m, qty) {
-  const already = readItems().some(it => it.m === m);
+  const already = readItems().some(it => it.m && it.m.name === m.name);
   if (already) return status(`「${m.name}」はもう入っています。数量を確認してください。`, "info");
   let row = readItems().find(it => !it.m && !(it.qty > 0));
   if (!row) { itemRow(); row = readItems().pop(); }
