@@ -70,13 +70,17 @@
   <section id="viewIn">
     <div id="editBar" class="msg info hidden">
       <div id="editTitle" style="font-weight:600;margin-bottom:8px"></div>
-      <div style="font-size:13px;margin-bottom:8px">品目・数量・注文番号を直して「訂正を保存」を押してください。品目を消すときは各品目の「削除」、品目を足すときは「＋ 品目を追加」です。</div>
+      <div style="font-size:13px;margin-bottom:8px">品目・数量・注番・納期・主担当を直して「訂正を保存」を押してください。品目を消すときは各品目の「削除」、品目を足すときは「＋ 品目を追加」です。</div>
       <div class="row2"><button class="btn ghost" id="editCancel">やめる</button><button class="btn ghost" id="editVoid" style="color:var(--ng);border-color:var(--ng)">この納品書を取り消す</button></div>
     </div>
     <div class="card">
       <div class="row2">
         <div><label for="date">納品日</label><input type="date" id="date"></div>
         <div><label for="tanto">担当者</label><input type="text" id="tanto" placeholder="例：永島"></div>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div><label for="nouki">納期（空欄なら納品日と同じ）</label><input type="date" id="nouki"></div>
+        <div><label for="mainC">トルク側の主担当（〇が付く）</label><select id="mainC"></select></div>
       </div>
     </div>
     <button class="btn primary" id="scanBtn" style="margin-bottom:12px">QRコードを読み取る</button>
@@ -159,6 +163,11 @@ function setData(d) {
   const keep = [...document.querySelectorAll(".item .name")].map(sel => sel.value === "" || sel.value === "new" ? sel.value : (master[+sel.value] || {}).name);
   master = d.master;
   details = d.details;
+  if (d.contacts) {
+    const cur = $("mainC").value || (() => { try { return localStorage.getItem("torque_main") || ""; } catch (_) { return ""; } })();
+    $("mainC").innerHTML = `<option value="">なし</option>` + d.contacts.map(n => `<option>${esc(n)}</option>`).join("");
+    $("mainC").value = d.contacts.includes(cur) ? cur : "";
+  }
   document.querySelectorAll(".item .name").forEach((sel, k) => {
     const v = keep[k];
     sel.innerHTML = nameOptions();
@@ -190,7 +199,7 @@ function itemRow() {
       <div style="margin-top:8px"><label>品名（箱のシールの通りに）</label><input class="newname" type="text" placeholder="例：ユニクロ六角全ネジ N・SW付 16×30"></div>
       <div style="margin-top:8px"><label>単価（わからなければ空欄）</label><input class="newprice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="空欄でOK"></div>
     </div>
-    <div style="margin-top:8px"><label>注文番号（Gから始まる番号。トルクの注文書を見て入れてください）</label><input class="orderno" type="text" autocapitalize="characters" autocomplete="off" placeholder="例：G92000G"></div>
+    <div style="margin-top:8px"><label>注番（Gから始まる番号。トルクの注文書を見て入れてください）</label><input class="orderno" type="text" autocapitalize="characters" autocomplete="off" placeholder="例：G92000G"></div>
     <div class="qtyline">
       <div><label>数量<span class="unitprice"></span></label><input class="qty" type="number" inputmode="numeric" min="0" placeholder="0"></div>
       <div class="amount">¥0</div>
@@ -250,14 +259,15 @@ async function save() {
   if (!items.length) return status("品名と数量を入れてください。", "ng");
   if (all.some(it => (it.m && !(it.qty > 0)) || (!it.m && it.qty > 0))) return status("品名か数量が抜けている品目があります。", "ng");
   const noOrder = items.find(it => !/^G[0-9A-Z\-]{2,20}$/.test(it.orderNo));
-  if (noOrder) { noOrder.div.querySelector(".orderno").focus(); return status(`「${noOrder.m.name}」の注文番号（Gから始まる番号）を入れてください。`, "ng"); }
+  if (noOrder) { noOrder.div.querySelector(".orderno").focus(); return status(`「${noOrder.m.name}」の注番（Gから始まる番号）を入れてください。`, "ng"); }
   try { const o = JSON.parse(localStorage.getItem("torque_order") || "{}"); items.forEach(it => { o[it.m.name] = it.orderNo; }); localStorage.setItem("torque_order", JSON.stringify(o)); } catch (_) {}
-  try { localStorage.setItem("torque_tanto", tanto); } catch (_) {}
+  try { localStorage.setItem("torque_tanto", tanto); localStorage.setItem("torque_main", $("mainC").value); } catch (_) {}
+  const opt = { nouki: $("nouki").value.replace(/-/g, "/"), main: $("mainC").value };
   const date = dateIso.replace(/-/g, "/");
   $("save").disabled = true; status("保存しています…");
   const payload = items.map(it => ({ row: it.div.dataset.row ? Number(it.div.dataset.row) : null, name: it.m.name, qty: it.qty, price: it.m.price, unit: it.m.unit, isNew: !!it.m.isNew, orderNo: it.orderNo }));
   try {
-    const d = editSlip ? await run("updateSlip", editSlip, date, tanto, payload) : await run("saveDelivery", date, tanto, payload);
+    const d = editSlip ? await run("updateSlip", editSlip, date, tanto, payload, opt) : await run("saveDelivery", date, tanto, payload, opt);
     const was = editSlip;
     endEdit();
     setData(d);
@@ -266,6 +276,7 @@ async function save() {
     $("saved").classList.remove("hidden");
     $("goPrint").dataset.key = d.slip;
     $("items").innerHTML = ""; itemRow();
+    $("nouki").value = "";
     renderPrintLists();
   } catch (e) {
     status("保存できませんでした：" + errText(e), "ng");
@@ -284,6 +295,8 @@ function startEdit(slip) {
   $("saved").classList.add("hidden");
   $("date").value = rows[0].date.replace(/\//g, "-");
   $("tanto").value = rows[0].tanto || "";
+  $("nouki").value = (rows[0].nouki || "").replace(/\//g, "-");
+  if ([...$("mainC").options].some(o => o.value === (rows[0].main || ""))) $("mainC").value = rows[0].main || "";
   $("items").innerHTML = "";
   rows.forEach(r => {
     itemRow();
@@ -311,6 +324,7 @@ $("editCancel").onclick = () => {
   const t = new Date();
   $("date").value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
   try { $("tanto").value = localStorage.getItem("torque_tanto") || ""; } catch (_) {}
+  $("nouki").value = "";
   status("訂正をやめました。", "info");
 };
 $("editVoid").onclick = async () => {
@@ -319,7 +333,7 @@ $("editVoid").onclick = async () => {
   status("取り消しています…");
   try {
     const slip = editSlip;
-    setData(await run("updateSlip", slip, $("date").value.replace(/-/g, "/"), $("tanto").value.trim(), []));
+    setData(await run("updateSlip", slip, $("date").value.replace(/-/g, "/"), $("tanto").value.trim(), [], {}));
     endEdit();
     $("items").innerHTML = ""; itemRow();
     renderPrintLists();
