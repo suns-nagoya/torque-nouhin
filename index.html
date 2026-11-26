@@ -51,6 +51,25 @@
   .list a { background:var(--accent); color:#fff; }
   h2 { font-size:15px; margin:0 0 10px; }
   .hidden { display:none !important; }
+  .oline { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+  .oline:first-child { border-top:0; padding-top:0; margin-top:0; }
+  .warn { background:#fff3c4 !important; }
+  .bad { border-color:var(--ng) !important; background:#fdecea !important; }
+  .seg { display:flex; gap:6px; margin:4px 0 12px; }
+  .seg button { flex:1; border:1px solid var(--line); background:#fff; border-radius:8px; padding:9px; font-size:15px; color:var(--sub); }
+  .seg button.on { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .ohead { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .badge { font-size:13px; font-weight:600; padding:3px 9px; border-radius:99px; background:#eef2f6; color:var(--ink); }
+  .badge.red { background:#b42318; color:#fff; } .badge.orange { background:#e8590c; color:#fff; }
+  .badge.yellow { background:#ffd43b; color:#3d2e00; } .badge.blue { background:#dbe7ff; color:#1d3f8a; } .badge.gray { background:#e9ecef; color:#616e7c; }
+  .stage { font-size:13px; color:var(--sub); margin-left:auto; }
+  .oitems { list-style:none; margin:0 0 8px; padding:0; font-size:15px; }
+  .oitems li { padding:5px 0; border-top:1px dashed var(--line); }
+  .oitems li:first-child { border-top:0; }
+  .oitems .meta, .omore { font-size:13px; color:var(--sub); }
+  .links { display:flex; gap:14px; margin-top:10px; font-size:14px; }
+  .links button { border:0; background:none; color:var(--accent); padding:4px 0; font-size:14px; }
+  .links button.ngl { color:var(--ng); }
   #scanner { position:fixed; inset:0; background:#000; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   #scanner video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   #scanner .frame { position:relative; width:70vw; max-width:320px; aspect-ratio:1; border:3px solid #fff; border-radius:16px; box-shadow:0 0 0 9999px rgba(0,0,0,.45); }
@@ -61,13 +80,44 @@
 <body>
 <header><h1>トルク株式会社　納品書・請求書</h1></header>
 <nav>
-  <button id="tabIn" class="on">納品を入力</button>
+  <button id="tabOd" class="on">受注</button>
+  <button id="tabIn">納品書</button>
   <button id="tabPr">印刷</button>
 </nav>
 <main>
   <div id="status" class="msg info">読み込んでいます…</div>
 
-  <section id="viewIn">
+  <section id="viewOd">
+    <button class="btn primary" id="shotBtn">＋ 指示書を撮って登録</button>
+    <input type="file" id="shotFile" accept="image/*" capture="environment" class="hidden">
+    <button class="btn ghost" id="manualBtn" style="margin-top:8px;margin-bottom:12px">写真なしで入力する</button>
+    <div id="odForm" class="card hidden">
+      <h2 id="odTitle">新しい受注</h2>
+      <img id="oPhoto" class="hidden" alt="指示書の写真" style="width:100%;border-radius:8px;margin-bottom:10px">
+      <p style="font-size:13px;color:var(--sub);margin:0 0 10px">指示書と見比べて直してから「登録する」を押してください。<span style="background:#fff3c4">黄色</span>は読み取りに自信がない欄です。</p>
+      <div class="row2">
+        <div><label for="oRecv">受領日</label><input type="date" id="oRecv"></div>
+        <div><label for="oContact">トルクの担当者</label><select id="oContact"></select></div>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div><label for="oShikyu">支給予定日</label><input type="date" id="oShikyu"></div>
+        <div><label for="oBill">請求月（「◯月伝票」のときだけ）</label><input type="month" id="oBill"></div>
+      </div>
+      <div style="margin-top:10px"><label for="oPack">梱包の指示</label><input type="text" id="oPack" placeholder="例：バンド必要・段ボールに十字のテープ"></div>
+      <div style="margin-top:10px"><label for="oMemo">メモ</label><input type="text" id="oMemo" placeholder="例：12/1引取り"></div>
+      <h2 style="margin-top:16px">品目</h2>
+      <div id="oLines"></div>
+      <button class="btn ghost" id="oAdd" style="margin-top:12px">＋ 品目を追加</button>
+      <div class="row2" style="margin-top:14px"><button class="btn ghost" id="oCancel">やめる</button><button class="btn primary" id="oSave">登録する</button></div>
+    </div>
+    <div class="seg"><button id="fOpen" class="on">未完了</button><button id="fDone">納品済み</button></div>
+    <div id="odList"></div>
+  </section>
+  <datalist id="masterNames"></datalist>
+
+  <section id="viewIn" class="hidden">
+    <div id="inGuide" class="msg info">納品書は「受注」タブで、各受注の「納品書を作る」から作ります。作った納品書の訂正は「印刷」タブの「直す」からです。</div>
+    <div id="inForm" class="hidden">
     <div id="editBar" class="msg info hidden">
       <div id="editTitle" style="font-weight:600;margin-bottom:8px"></div>
       <div style="font-size:13px;margin-bottom:8px">品目・数量・注番・納期・主担当を直して「訂正を保存」を押してください。品目を消すときは各品目の「削除」、品目を足すときは「＋ 品目を追加」です。</div>
@@ -102,6 +152,7 @@
     </div>
     <div class="total"><span>合計（税抜）</span><span id="sum">¥0</span></div>
     <button class="btn primary" id="save">保存する</button>
+    </div>
     <div id="saved" class="hidden" style="margin-top:12px">
       <div class="msg ok" id="savedMsg"></div>
       <button class="btn ghost" id="goPrint">この納品書を印刷する</button>
@@ -163,6 +214,8 @@ function setData(d) {
   const keep = [...document.querySelectorAll(".item .name")].map(sel => sel.value === "" || sel.value === "new" ? sel.value : (master[+sel.value] || {}).name);
   master = d.master;
   details = d.details;
+  if (d.orders) orders = d.orders;
+  if (d.contacts) contacts = d.contacts;
   if (d.contacts) {
     const cur = $("mainC").value || (() => { try { return localStorage.getItem("torque_main") || ""; } catch (_) { return ""; } })();
     $("mainC").innerHTML = `<option value="">なし</option>` + d.contacts.map(n => `<option>${esc(n)}</option>`).join("");
@@ -173,6 +226,7 @@ function setData(d) {
     sel.innerHTML = nameOptions();
     sel.value = v === "" || v === "new" ? v : String(master.findIndex(x => x.name === v));
   });
+  renderOrders();
 }
 
 function renderPrintLists() {
@@ -236,6 +290,7 @@ function readItems() {
       const name = div.querySelector(".newname").value.normalize("NFKC").replace(/\s+/g, " ").trim();
       if (name) m = { name, price: num(div.querySelector(".newprice").value), unit: "本", isNew: true };
     } else if (idx !== "") m = master[+idx];
+    if (m && !m.isNew && div.dataset.price !== undefined && div.dataset.price !== "") m = { ...m, price: Number(div.dataset.price) }; // 指示書の単価の指定
     return { div, m, qty: num(div.querySelector(".qty").value), orderNo: normOrder(div.querySelector(".orderno").value) };
   });
 }
@@ -262,14 +317,16 @@ async function save() {
   if (noOrder) { noOrder.div.querySelector(".orderno").focus(); return status(`「${noOrder.m.name}」の注番（Gから始まる番号）を入れてください。`, "ng"); }
   try { const o = JSON.parse(localStorage.getItem("torque_order") || "{}"); items.forEach(it => { o[it.m.name] = it.orderNo; }); localStorage.setItem("torque_order", JSON.stringify(o)); } catch (_) {}
   try { localStorage.setItem("torque_tanto", tanto); localStorage.setItem("torque_main", $("mainC").value); } catch (_) {}
-  const opt = { nouki: $("nouki").value.replace(/-/g, "/"), main: $("mainC").value };
+  const opt = { nouki: $("nouki").value.replace(/-/g, "/"), main: $("mainC").value, bill: fromOrd && !editSlip ? fromOrd.bill : "" };
   const date = dateIso.replace(/-/g, "/");
   $("save").disabled = true; status("保存しています…");
-  const payload = items.map(it => ({ row: it.div.dataset.row ? Number(it.div.dataset.row) : null, name: it.m.name, qty: it.qty, price: it.m.price, unit: it.m.unit, isNew: !!it.m.isNew, orderNo: it.orderNo }));
+  const payload = items.map(it => ({ row: it.div.dataset.row ? Number(it.div.dataset.row) : null, name: it.m.name, qty: it.qty, price: it.m.price, unit: it.m.unit, isNew: !!it.m.isNew, orderNo: it.orderNo, lineId: it.div.dataset.line || "" }));
   try {
     const d = editSlip ? await run("updateSlip", editSlip, date, tanto, payload, opt) : await run("saveDelivery", date, tanto, payload, opt);
     const was = editSlip;
     endEdit();
+    fromOrd = null;
+    setInForm(false);
     setData(d);
     status("");
     $("savedMsg").textContent = was ? `納品書 No.${d.slip} を訂正しました（${items.length}品目）。` : `${jpDate(date)}の納品を${items.length}品目保存しました（納品書 No.${d.slip}）。`;
@@ -289,6 +346,9 @@ function startEdit(slip) {
   const rows = details.filter(r => r.slip === slip);
   if (!rows.length) return status("この納品書が見つかりません。", "ng");
   editSlip = slip;
+  fromOrd = null;
+  $("editVoid").classList.remove("hidden");
+  setInForm(true);
   $("editTitle").textContent = `納品書 No.${slip}（${rows[0].date}）を直しています`;
   $("editBar").classList.remove("hidden");
   $("save").textContent = "訂正を保存";
@@ -320,6 +380,8 @@ function endEdit() {
 }
 $("editCancel").onclick = () => {
   endEdit();
+  fromOrd = null;
+  setInForm(false);
   $("items").innerHTML = ""; itemRow();
   const t = new Date();
   $("date").value = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
@@ -335,6 +397,7 @@ $("editVoid").onclick = async () => {
     const slip = editSlip;
     setData(await run("updateSlip", slip, $("date").value.replace(/-/g, "/"), $("tanto").value.trim(), [], {}));
     endEdit();
+    setInForm(false);
     $("items").innerHTML = ""; itemRow();
     renderPrintLists();
     status(`納品書 No.${slip} を取り消しました。`, "ok");
@@ -595,12 +658,233 @@ $("linkSave").onclick = async () => {
   finally { $("linkSave").disabled = false; }
 };
 
+// ---------- 受注 ----------
+let orders = [], contacts = [], odFilter = "open", odEditId = null, fromOrd = null;
+const STAGES = ["支給待ち", "支給済", "作業終了", "梱包済"];
+const NEXT = ["支給を受け取った", "作業終了", "梱包・紐がけ済"];
+const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; };
+const isoToSlash = (v) => String(v || "").replace(/-/g, "/");
+const slashToIso = (v) => String(v || "").replace(/\//g, "-");
+const md = (s) => { if (!s) return ""; const [, m, d] = s.split("/"); return `${+m}/${+d}`; };
+const keyName = (s) => String(s || "").normalize("NFKC").replace(/(\d)\s*[xX＊*×]\s*(\d)/g, "$1×$2").replace(/^G[0-9A-Z]{4,}\s*/, "").replace(/\s+/g, "");
+const findMaster = (name) => { const k = keyName(name); return master.find(m => keyName(m.name) === k) || null; };
+const isDone = (o) => o.lines.length && o.lines.every(l => l.slip);
+function orderNouki(o) { return o.lines.filter(l => !l.slip && l.nouki).map(l => l.nouki).sort()[0] || ""; }
+function noukiBadge(n) {
+  if (!n) return ["gray", "納期なし"];
+  const [y, m, d] = n.split("/").map(Number), t = new Date();
+  const diff = Math.round((new Date(y, m - 1, d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
+  if (diff < 0) return ["red", `${-diff}日遅れ`];
+  if (diff === 0) return ["orange", "今日"];
+  if (diff === 1) return ["yellow", "明日"];
+  if (diff <= 6) return ["blue", `あと${diff}日`];
+  return ["", ""];
+}
+function renderOrders() {
+  $("masterNames").innerHTML = master.map(m => `<option value="${esc(m.name)}">`).join("");
+  const done = odFilter === "done";
+  let list = orders.filter(o => !!isDone(o) === done);
+  if (done) list.sort((a, b) => (b.recv > a.recv ? 1 : -1));
+  else list.sort((a, b) => { const x = orderNouki(a) || "9999", y = orderNouki(b) || "9999"; return x !== y ? (x < y ? -1 : 1) : (a.recv < b.recv ? -1 : 1); });
+  $("odList").innerHTML = list.map(o => {
+    const n = done ? "" : orderNouki(o), [c, txt] = done ? ["", ""] : noukiBadge(n);
+    const items = o.lines.map(l => `<li><b>${esc(l.orderNo)}</b>　${esc(l.name)}　${l.qty.toLocaleString("ja-JP")}本${l.fuzoku ? `<div class="meta">${esc(l.fuzoku)}${l.iri ? `・入り数${l.iri}` : ""}</div>` : ""}${l.slip ? `<div class="meta">納品済み（No.${esc(l.slip)}）　<button class="mini" data-kind="nouhin" data-key="${esc(l.slip)}" style="border:0;background:none;color:var(--accent);padding:0;font-size:13px">PDF</button></div>` : (l.nouki && done === false && o.lines.some(x => x.nouki !== l.nouki) ? `<div class="meta">納期 ${md(l.nouki)}</div>` : "")}</li>`).join("");
+    const stage = done ? "納品済み" : STAGES[o.stage];
+    const btn = done ? "" : (o.stage < 3 ? `<button class="btn primary" data-next="${esc(o.id)}">${NEXT[o.stage]}</button>` : `<button class="btn primary" data-deliver="${esc(o.id)}">納品書を作る</button>`);
+    const links = done ? "" : `<div class="links">${o.stage > 0 ? `<button data-back="${esc(o.id)}">1つ戻す</button>` : ""}<button data-oedit="${esc(o.id)}">直す</button><button class="ngl" data-ocancel="${esc(o.id)}">取り消す</button></div>`;
+    return `<div class="card"><div class="ohead">${txt ? `<span class="badge ${c}">${txt}</span>` : ""}<b>${n ? "納期 " + md(n) : (done ? "受領 " + md(o.recv) : "")}</b><span class="stage">${esc(stage)}</span></div>
+      <ul class="oitems">${items}</ul>
+      ${o.pack ? `<div class="omore">梱包：${esc(o.pack)}</div>` : ""}${o.memo ? `<div class="omore">メモ：${esc(o.memo)}</div>` : ""}
+      <div class="omore" style="margin-bottom:10px">受領 ${md(o.recv)}${o.contact ? "・" + esc(o.contact) + "さん" : ""}${o.shikyu ? "・支給予定 " + md(o.shikyu) : ""}${o.bill ? "・" + (+o.bill.split("/")[1]) + "月伝票" : ""}</div>
+      ${btn}${links}</div>`;
+  }).join("") || `<div class="msg info">${done ? "納品済みの受注はまだありません。" : "未完了の受注はありません。指示書が届いたら「＋ 指示書を撮って登録」から登録してください。"}</div>`;
+}
+$("fOpen").onclick = () => { odFilter = "open"; $("fOpen").classList.add("on"); $("fDone").classList.remove("on"); renderOrders(); };
+$("fDone").onclick = () => { odFilter = "done"; $("fDone").classList.add("on"); $("fOpen").classList.remove("on"); renderOrders(); };
+
+// 受注の入力欄
+function oLine(l = {}) {
+  const div = document.createElement("div");
+  div.className = "oline";
+  if (l.id) div.dataset.id = l.id;
+  div.dataset.raw = l.raw || "";
+  div.innerHTML = `
+    <div class="itemhead"><span class="no"></span><button class="del" type="button">削除</button></div>
+    <div class="row2"><div><label>注番</label><input class="lOrder" type="text" autocapitalize="characters" autocomplete="off" placeholder="例：G43254A"></div><div><label>納期</label><input class="lNouki" type="date"></div></div>
+    <div style="margin-top:8px"><label>品名</label><input class="lName" type="text" list="masterNames" placeholder="例：BT NT ユニクロ 24×135"></div>
+    <div class="lHint" style="font-size:13px;color:var(--sub);margin-top:4px"></div>
+    <div class="row2" style="margin-top:8px"><div><label>数量（本）</label><input class="lQty" type="number" inputmode="numeric" min="0"></div><div><label>入り数</label><input class="lIri" type="number" inputmode="numeric" min="0"></div></div>
+    <div class="row2" style="margin-top:8px"><div><label>付属品</label><input class="lFuzoku" type="text" placeholder="例：NT1 丸W2 SW1"></div><div><label>単価の指定（@）</label><input class="lPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="なければ空欄"></div></div>`;
+  const q = (c) => div.querySelector(c);
+  q(".lOrder").value = l.orderNo || ""; q(".lNouki").value = slashToIso(l.nouki); q(".lName").value = l.name || "";
+  q(".lQty").value = l.qty || ""; q(".lIri").value = l.iri ?? ""; q(".lFuzoku").value = l.fuzoku || ""; q(".lPrice").value = l.price ?? "";
+  if (l.slip) { div.dataset.slip = l.slip; q(".del").style.visibility = "hidden"; }
+  q(".del").onclick = () => { div.remove(); oNumber(); };
+  q(".lName").oninput = () => oHint(div);
+  div.addEventListener("input", (e) => e.target.classList.remove("warn", "bad"));
+  $("oLines").appendChild(div);
+  oHint(div); oNumber();
+  return div;
+}
+function oHint(div) {
+  const name = div.querySelector(".lName").value.trim(), m = name && findMaster(name);
+  div.querySelector(".lHint").textContent = !name ? "" : m ? (m.price ? `単価 ${m.price}円` : "単価は未登録です") : "一覧にない品名です（新しい品目として登録されます）";
+}
+function oNumber() { [...$("oLines").children].forEach((d, i) => { d.querySelector(".no").textContent = `品目 ${i + 1}` + (d.dataset.slip ? "（納品済み）" : ""); }); }
+function openOrderForm(o, read) {
+  odEditId = o && o.id || null;
+  $("odTitle").textContent = odEditId ? "受注を直す" : "新しい受注";
+  $("oSave").textContent = odEditId ? "直した内容を保存" : "登録する";
+  const v = o || {};
+  $("oContact").innerHTML = `<option value="">選ぶ</option>` + contacts.map(n => `<option>${esc(n)}</option>`).join("") + (v.contact && !contacts.includes(v.contact) ? `<option>${esc(v.contact)}</option>` : "");
+  $("oRecv").value = slashToIso(v.recv) || todayIso();
+  $("oContact").value = v.contact || "";
+  $("oShikyu").value = slashToIso(v.shikyu);
+  $("oBill").value = v.bill ? v.bill.replace("/", "-") : "";
+  $("oPack").value = v.pack || ""; $("oMemo").value = v.memo || "";
+  $("oLines").innerHTML = "";
+  (v.lines && v.lines.length ? v.lines : [{}]).forEach(l => oLine(l));
+  document.querySelectorAll("#odForm .warn, #odForm .bad").forEach(e => e.classList.remove("warn", "bad"));
+  if (read && read.uncertain) {
+    const ids = { recv: "oRecv", contact: "oContact", shikyu: "oShikyu", bill: "oBill", pack: "oPack", memo: "oMemo" };
+    const cls = { orderNo: ".lOrder", name: ".lName", qty: ".lQty", iri: ".lIri", fuzoku: ".lFuzoku", nouki: ".lNouki", price: ".lPrice" };
+    read.uncertain.forEach(k => {
+      const p = String(k).split(".");
+      if (ids[p[0]]) $(ids[p[0]]).classList.add("warn");
+      else if (p[0] === "lines" && cls[p[2]] && $("oLines").children[+p[1]]) $("oLines").children[+p[1]].querySelector(cls[p[2]]).classList.add("warn");
+    });
+  }
+  $("odForm").classList.remove("hidden");
+  show("od");
+  $("odForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function closeOrderForm() {
+  $("odForm").classList.add("hidden");
+  $("oPhoto").classList.add("hidden");
+  if ($("oPhoto").src) { URL.revokeObjectURL($("oPhoto").src); $("oPhoto").removeAttribute("src"); }
+  odEditId = null;
+}
+$("manualBtn").onclick = () => { $("oPhoto").classList.add("hidden"); openOrderForm(null); };
+$("oAdd").onclick = () => { const last = $("oLines").lastElementChild; const d = oLine(); if (last) { d.querySelector(".lOrder").value = last.querySelector(".lOrder").value; d.querySelector(".lNouki").value = last.querySelector(".lNouki").value; } };
+$("oCancel").onclick = () => { closeOrderForm(); status(""); };
+$("oSave").onclick = async () => {
+  document.querySelectorAll("#odForm .bad").forEach(e => e.classList.remove("bad"));
+  const bad = (el, msg) => { el.classList.add("bad"); el.scrollIntoView({ behavior: "smooth", block: "center" }); status(msg, "ng"); };
+  if (!$("oRecv").value) return bad($("oRecv"), "受領日を入れてください。");
+  const lines = [];
+  for (const [i, d] of [...$("oLines").children].entries()) {
+    const q = (c) => d.querySelector(c);
+    const l = { id: d.dataset.id || "", raw: d.dataset.raw || "", orderNo: normOrder(q(".lOrder").value), name: q(".lName").value.trim(), qty: num(q(".lQty").value),
+                iri: q(".lIri").value === "" ? "" : num(q(".lIri").value), fuzoku: q(".lFuzoku").value.trim(), nouki: isoToSlash(q(".lNouki").value),
+                price: q(".lPrice").value === "" ? "" : num(q(".lPrice").value) };
+    if (!l.orderNo && !l.name && !l.qty && !l.id) continue;
+    if (!/^G[0-9A-Z\-]{2,20}$/.test(l.orderNo)) return bad(q(".lOrder"), `品目${i + 1}の注番（Gから始まる番号）を入れてください。`);
+    if (!l.name) return bad(q(".lName"), `品目${i + 1}の品名を入れてください。`);
+    if (!(l.qty > 0)) return bad(q(".lQty"), `品目${i + 1}の数量を入れてください。`);
+    if (!l.nouki) return bad(q(".lNouki"), `品目${i + 1}の納期を入れてください。`);
+    lines.push(l);
+  }
+  if (!lines.length) return status("品目を入れてください。", "ng");
+  const h = { recv: isoToSlash($("oRecv").value), contact: $("oContact").value, shikyu: isoToSlash($("oShikyu").value), bill: $("oBill").value.replace("-", "/"), pack: $("oPack").value.trim(), memo: $("oMemo").value.trim() };
+  let by = ""; try { by = localStorage.getItem("torque_tanto") || ""; } catch (_) {}
+  $("oSave").disabled = true; status("保存しています…");
+  try {
+    const was = odEditId;
+    setData(await run("saveOrder", odEditId, h, lines, by));
+    closeOrderForm();
+    renderPrintLists();
+    status(was ? "受注を直しました。" : `受注を登録しました（${lines.length}品目）。`, "ok");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) { status("保存できませんでした：" + errText(e), "ng"); }
+  finally { $("oSave").disabled = false; }
+};
+
+// 指示書の写真を撮る → 縮めて送る → 読み取り結果を入力欄に入れる（写真は保存しない）
+$("shotBtn").onclick = () => $("shotFile").click();
+$("shotFile").onchange = () => {
+  const f = $("shotFile").files[0];
+  $("shotFile").value = "";
+  if (!f) return;
+  const url = URL.createObjectURL(f), img = new Image();
+  img.onload = async () => {
+    const sc = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const b64 = c.toDataURL("image/jpeg", 0.8).split(",")[1];
+    $("oPhoto").src = url; $("oPhoto").classList.remove("hidden");
+    $("shotBtn").disabled = true;
+    status("指示書を読み取っています…（20秒ほどかかります）");
+    try {
+      const r = await run("readOrderPhoto", b64, "image/jpeg");
+      const contact = contacts.find(n => r.contact && (n === r.contact || r.contact.includes(n))) || r.contact || "";
+      openOrderForm({ recv: r.recv, contact, shikyu: r.shikyu, bill: r.bill, pack: r.pack, memo: r.memo,
+        lines: (r.lines || []).map(l => ({ orderNo: l.orderNo, name: (findMaster(l.name) || {}).name || l.name, raw: l.raw, qty: l.qty, iri: l.iri ?? "", fuzoku: l.fuzoku, nouki: l.nouki, price: l.price ?? "" })) }, r);
+      status("読み取りました。写真と見比べて確かめてください。", "ok");
+    } catch (e) {
+      openOrderForm(null);
+      status(errText(e), "ng");
+    } finally { $("shotBtn").disabled = false; }
+  };
+  img.onerror = () => status("写真を読み込めませんでした。", "ng");
+  img.src = url;
+};
+
+// 受注から納品書を作る（まだ納品していない品目をすべて入れる。今回は納品しない品目は「削除」）
+function setInForm(on) { $("inForm").classList.toggle("hidden", !on); $("inGuide").classList.toggle("hidden", on); }
+function fromOrder(o) {
+  const ls = o.lines.filter(l => !l.slip);
+  if (!ls.length) return;
+  endEdit();
+  fromOrd = o;
+  $("saved").classList.add("hidden");
+  $("items").innerHTML = "";
+  ls.forEach(l => {
+    itemRow();
+    const div = $("items").lastElementChild, sel = div.querySelector(".name"), m = findMaster(l.name);
+    if (m) { sel.value = String(master.indexOf(m)); if (l.price !== "") div.dataset.price = l.price; }
+    else { sel.value = "new"; div.querySelector(".newbox").classList.remove("hidden"); div.querySelector(".newname").value = l.name; div.querySelector(".newprice").value = l.price; }
+    div.querySelector(".orderno").value = l.orderNo;
+    div.querySelector(".qty").value = l.qty;
+    div.dataset.line = l.id;
+  });
+  $("date").value = todayIso();
+  $("nouki").value = slashToIso(ls.map(l => l.nouki).filter(Boolean).sort()[0] || "");
+  if ([...$("mainC").options].some(x => x.value === o.contact)) $("mainC").value = o.contact;
+  $("editTitle").textContent = `受注（${[...new Set(ls.map(l => l.orderNo))].join("・")}）から納品書を作っています`;
+  $("editBar").classList.remove("hidden");
+  $("editVoid").classList.add("hidden");
+  setInForm(true);
+  refresh();
+  show("in");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  status(o.bill ? `この受注は${+o.bill.split("/")[1]}月の請求書に載ります。` : "");
+}
+async function orderAction(fn, id, okMsg, ...args) {
+  status("保存しています…");
+  try { setData(await run(fn, id, ...args)); status(okMsg, "ok"); } catch (e) { status(errText(e), "ng"); }
+}
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("button");
+  if (!t) return;
+  const o = (id) => orders.find(x => x.id === id);
+  if (t.dataset.kind && !$("viewOd").classList.contains("hidden")) return show("pr"); // PDFは印刷タブに出す（このあと makePdf が動く）
+  if (t.dataset.next) return orderAction("setStage", t.dataset.next, `「${NEXT[o(t.dataset.next).stage]}」にしました。`, 1);
+  if (t.dataset.back) return orderAction("setStage", t.dataset.back, "1つ戻しました。", -1);
+  if (t.dataset.deliver) return fromOrder(o(t.dataset.deliver));
+  if (t.dataset.oedit) return openOrderForm(o(t.dataset.oedit));
+  if (t.dataset.ocancel) { if (confirm("この受注を取り消します。よろしいですか？")) orderAction("cancelOrder", t.dataset.ocancel, "受注を取り消しました。"); }
+});
+
 function show(view) {
+  $("viewOd").classList.toggle("hidden", view !== "od");
+  $("tabOd").classList.toggle("on", view === "od");
   $("viewIn").classList.toggle("hidden", view !== "in");
   $("viewPr").classList.toggle("hidden", view !== "pr");
   $("tabIn").classList.toggle("on", view === "in");
   $("tabPr").classList.toggle("on", view === "pr");
 }
+$("tabOd").onclick = () => show("od");
 $("tabIn").onclick = () => show("in");
 $("tabPr").onclick = () => show("pr");
 $("addItem").onclick = itemRow;
