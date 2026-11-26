@@ -103,7 +103,7 @@
     </div>
     <div class="card">
       <h2>明細</h2>
-      <p style="font-size:13px;color:var(--sub);margin:0 0 6px">「直す」を押すと、納品日・注文番号・品名・数量・単価・担当者・備考を変えられます。単価を空欄にすると、マスタの単価で計算します。</p>
+      <p style="font-size:13px;color:var(--sub);margin:0 0 6px">「直す」を押すと、納品日・注番・品名・数量・単価・担当者・備考を変えられます。単価を空欄にすると、マスタの単価で計算します。</p>
       <div id="mList"></div>
     </div>
   </section>
@@ -204,7 +204,7 @@ function renderMeisai() {
     const p = r.price === "" ? (r.unitPrice === "" ? "単価未定" : `単価${r.unitPrice}（マスタ）`) : `単価${r.price}`;
     const warn = r.unitPrice === "" ? " warn" : "";
     return `<div class="drow" data-row="${r.row}">
-      <div class="dhead"><div>${esc(fmtDate(r.date))}　${r.orderNo ? esc(r.orderNo) + " " : '<span class="warn">注文番号なし</span> '}${esc(r.name)}<div class="meta${warn}">${r.qty.toLocaleString("ja-JP")}・${esc(p)}・${yen(r.amount)}${r.tanto ? "・" + esc(r.tanto) : ""}${r.note ? "・" + esc(r.note) : ""}</div></div><button data-edit="${r.row}">直す</button></div>
+      <div class="dhead"><div>${esc(fmtDate(r.date))}　${r.orderNo ? esc(r.orderNo) + " " : '<span class="warn">注番なし</span> '}${esc(r.name)}<div class="meta${warn}">${r.qty.toLocaleString("ja-JP")}・${esc(p)}・${yen(r.amount)}${r.tanto ? "・" + esc(r.tanto) : ""}${r.note ? "・" + esc(r.note) : ""}</div></div><button data-edit="${r.row}">直す</button></div>
       ${openRow === r.row ? editForm(r) : ""}
     </div>`;
   }).join("") || "<p>この月の明細はありません</p>";
@@ -213,7 +213,7 @@ function editForm(r) {
   const names = [...new Set([r.name, ...adm.master.map(m => m.name)])];
   return `<div class="form">
     <div class="row2"><div><label>納品日</label><input type="date" class="fDate" value="${esc(r.date)}"></div><div><label>数量</label><input type="number" inputmode="numeric" class="fQty" value="${r.qty}"></div></div>
-    <div><label>注文番号（G…）</label><input type="text" class="fOrder" autocapitalize="characters" value="${esc(r.orderNo || "")}" placeholder="例：G92000G"></div>
+    <div><label>注番（G…）</label><input type="text" class="fOrder" autocapitalize="characters" value="${esc(r.orderNo || "")}" placeholder="例：G92000G"></div>
     <div><label>品名</label><select class="fName">${names.map(n => `<option ${n === r.name ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
     <div class="row2"><div><label>単価（空欄ならマスタ）</label><input type="number" inputmode="decimal" step="0.1" class="fPrice" value="${r.price === "" ? "" : r.price}" placeholder="マスタの単価"></div><div><label>担当者</label><input type="text" class="fTanto" value="${esc(r.tanto)}"></div></div>
     <div><label>備考</label><input type="text" class="fNote" value="${esc(r.note)}"></div>
@@ -228,7 +228,7 @@ async function saveRow(row) {
     tanto: box.querySelector(".fTanto").value.trim(), note: box.querySelector(".fNote").value.trim(),
     orderNo: box.querySelector(".fOrder").value.normalize("NFKC").toUpperCase().replace(/\s+/g, "")
   };
-  if (f.orderNo && !/^G[0-9A-Z\-]{2,20}$/.test(f.orderNo)) return status("注文番号はGから始まる英数字で入れてください。", "ng");
+  if (f.orderNo && !/^G[0-9A-Z\-]{2,20}$/.test(f.orderNo)) return status("注番はGから始まる英数字で入れてください。", "ng");
   if (!f.date) return status("納品日を入れてください。", "ng");
   if (!(f.qty > 0)) return status("数量を入れてください。", "ng");
   status("保存しています…");
