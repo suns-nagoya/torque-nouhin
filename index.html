@@ -80,7 +80,7 @@
       </div>
       <div class="row2" style="margin-top:10px">
         <div><label for="nouki">納期（空欄なら納品日と同じ）</label><input type="date" id="nouki"></div>
-        <div><label for="mainC">トルク側の主担当（〇が付く）</label><select id="mainC"></select></div>
+        <div><label for="mainC">トルク側の主担当（名前が丸で囲まれる）</label><select id="mainC"></select></div>
       </div>
     </div>
     <button class="btn primary" id="scanBtn" style="margin-bottom:12px">QRコードを読み取る</button>
@@ -341,14 +341,61 @@ $("editVoid").onclick = async () => {
   } catch (e) { status("取り消せませんでした：" + errText(e), "ng"); }
 };
 
+// 納品書PDFの宛名で、主担当の名前を丸で囲む（シートでは文字を丸で囲めないため、PDFに描き足す）
+const PDFJS = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs";
+const PDFJS_WORKER = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs";
+const PDFLIB = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js";
+const loadScript = (src) => new Promise((ok, ng) => { if (window.PDFLib) return ok(); const sc = document.createElement("script"); sc.src = src; sc.onload = ok; sc.onerror = ng; document.head.appendChild(sc); });
+async function circleName(bytes, target) {
+  try {
+    const lib = await import(PDFJS);
+    lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    const doc = await lib.getDocument({ data: bytes.slice() }).promise;
+    const page = await doc.getPage(1);
+    const items = (await page.getTextContent()).items.filter(i => i.str);
+    const lines = {};
+    items.forEach(i => { const y = Math.round(i.transform[5]); (lines[y] ||= []).push(i); });
+    let hit = null;
+    for (const y of Object.keys(lines)) {
+      const its = lines[y].sort((a, b) => a.transform[4] - b.transform[4]);
+      let str = ""; const pos = [];
+      its.forEach(i => {
+        const cs = [...i.str], w = cs.map(c => (c.charCodeAt(0) < 0x100 || "・（）、。".includes(c)) ? 0.5 : 1), tot = w.reduce((a, b) => a + b, 0) || 1;
+        let x = i.transform[4];
+        cs.forEach((c, k) => { const cw = i.width * w[k] / tot; pos.push([x, x + cw]); x += cw; str += c; });
+      });
+      const k = str.indexOf(target);
+      if (k >= 0) {
+        const t = its[0].transform;
+        hit = { x1: pos[k][0], x2: pos[k + target.length - 1][1], y: t[5], h: Math.hypot(t[2], t[3]) || its[0].height || 12 };
+        break;
+      }
+    }
+    if (!hit) return bytes;
+    await loadScript(PDFLIB);
+    const pdf = await PDFLib.PDFDocument.load(bytes);
+    pdf.getPages()[0].drawEllipse({
+      x: (hit.x1 + hit.x2) / 2, y: hit.y + hit.h * 0.35,
+      xScale: (hit.x2 - hit.x1) / 2 + hit.h * 0.22, yScale: hit.h * 0.72,
+      borderColor: PDFLib.rgb(0.1, 0.1, 0.1), borderWidth: 0.9
+    });
+    return await pdf.save();
+  } catch (e) { console.log("circleName", e); return bytes; }
+}
+
 async function makePdf(kind, key, btn) {
   $("prepared").classList.add("hidden");
   document.querySelectorAll("button[data-kind]").forEach(b => b.disabled = true);
   status("PDFを作っています…（10秒ほどかかります）");
   try {
     const r = await run("makePdf", kind, key);
-    const bin = atob(r.b64), bytes = new Uint8Array(bin.length);
+    const bin = atob(r.b64);
+    let bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (kind === "nouhin") {
+      const row = details.find(x => x.slip === key);
+      if (row && row.main) bytes = await circleName(bytes, row.main + "様");
+    }
     if (lastUrl) URL.revokeObjectURL(lastUrl);
     lastUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
     const [y, mo] = key.split("/");
