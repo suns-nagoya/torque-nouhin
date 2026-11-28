@@ -697,7 +697,7 @@ function renderOrders() {
   else list.sort((a, b) => { const x = orderNouki(a) || "9999", y = orderNouki(b) || "9999"; return x !== y ? (x < y ? -1 : 1) : (a.recv < b.recv ? -1 : 1); });
   $("odList").innerHTML = list.map(o => {
     const n = done ? "" : orderNouki(o), [c, txt] = done ? ["", ""] : noukiBadge(n);
-    const items = o.lines.map(l => `<li><b>${esc(l.orderNo)}</b>　${esc(l.name)}　${l.qty.toLocaleString("ja-JP")}本${l.fuzoku ? `<div class="meta">${esc(l.fuzoku)}${l.iri ? `・入り数${l.iri}` : ""}</div>` : ""}${l.slip ? `<div class="meta">納品済み（No.${esc(l.slip)}）　<button class="mini" data-kind="nouhin" data-key="${esc(l.slip)}" style="border:0;background:none;color:var(--accent);padding:0;font-size:13px">PDF</button></div>` : (l.nouki && done === false && o.lines.some(x => x.nouki !== l.nouki) ? `<div class="meta">納期 ${md(l.nouki)}</div>` : "")}</li>`).join("");
+    const items = o.lines.map(l => `<li><b>${esc(l.orderNo)}</b>　${esc(l.name)}　${l.qty.toLocaleString("ja-JP")}本${l.fuzoku || l.iri ? `<div class="meta">${l.fuzoku ? "組付け：ボルト＋" + esc(l.fuzoku.trim().split(/\s+/).join("＋")) : ""}${l.fuzoku && l.iri ? "・" : ""}${l.iri ? `入り数${l.iri}` : ""}</div>` : ""}${l.slip ? `<div class="meta">納品済み（No.${esc(l.slip)}）　<button class="mini" data-kind="nouhin" data-key="${esc(l.slip)}" style="border:0;background:none;color:var(--accent);padding:0;font-size:13px">PDF</button></div>` : (l.nouki && done === false && o.lines.some(x => x.nouki !== l.nouki) ? `<div class="meta">納期 ${md(l.nouki)}</div>` : "")}</li>`).join("");
     const stage = done ? "納品済み" : STAGES[o.stage];
     const btn = done ? "" : (o.stage < 3 ? `<button class="btn primary" data-next="${esc(o.id)}">${NEXT[o.stage]}</button>` : `<button class="btn primary" data-deliver="${esc(o.id)}">納品書を作る</button>`);
     const links = done ? "" : `<div class="links">${o.stage > 0 ? `<button data-back="${esc(o.id)}">1つ戻す</button>` : ""}<button data-oedit="${esc(o.id)}">直す</button><button class="ngl" data-ocancel="${esc(o.id)}">取り消す</button></div>`;
@@ -723,7 +723,7 @@ function oLine(l = {}) {
     <div style="margin-top:8px"><label>品名</label><input class="lName" type="text" list="masterNames" placeholder="例：BT NT ユニクロ 24×135"></div>
     <div class="lHint" style="font-size:13px;color:var(--sub);margin-top:4px"></div>
     <div class="row2" style="margin-top:8px"><div><label>数量（本）</label><input class="lQty" type="number" inputmode="numeric" min="0"></div><div><label>入り数</label><input class="lIri" type="number" inputmode="numeric" min="0"></div></div>
-    <div class="row2" style="margin-top:8px"><div><label>付属品</label><input class="lFuzoku" type="text" placeholder="例：NT1 丸W2 SW1"></div><div><label>単価の指定（@）</label><input class="lPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="なければ空欄"></div></div>`;
+    <div class="row2" style="margin-top:8px"><div><label>付属品（ボルト1本あたり）</label><input class="lFuzoku" type="text" placeholder="例：NT1 丸W1"></div><div><label>単価の指定（@）</label><input class="lPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="なければ空欄"></div></div>`;
   const q = (c) => div.querySelector(c);
   q(".lOrder").value = l.orderNo || ""; q(".lNouki").value = slashToIso(l.nouki); q(".lName").value = l.name || "";
   q(".lQty").value = l.qty || ""; q(".lIri").value = l.iri ?? ""; q(".lFuzoku").value = l.fuzoku || ""; q(".lPrice").value = l.price ?? "";
