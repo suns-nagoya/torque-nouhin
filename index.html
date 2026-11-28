@@ -437,24 +437,33 @@ async function circleName(bytes, target) {
     if (!hit) return bytes;
     await loadScript(PDFLIB);
     const pdf = await PDFLib.PDFDocument.load(bytes);
-    pdf.getPages()[0].drawEllipse({
+    pdf.getPages().forEach(pg => pg.drawEllipse({ // 控えのページにも同じ位置で描く
       x: (hit.x1 + hit.x2) / 2, y: hit.y + hit.h * 0.35,
       xScale: (hit.x2 - hit.x1) / 2 + hit.h * 0.22, yScale: hit.h * 0.72,
       borderColor: PDFLib.rgb(0.1, 0.1, 0.1), borderWidth: 0.9
-    });
+    }));
     return await pdf.save();
   } catch (e) { console.log("circleName", e); return bytes; }
 }
 
+// 納品書の後ろに控えのページをつなげて1つのPDFにする（失敗したら納品書だけ）
+async function withCopy(main, copy) {
+  try {
+    await loadScript(PDFLIB);
+    const pdf = await PDFLib.PDFDocument.load(main), c = await PDFLib.PDFDocument.load(copy);
+    (await pdf.copyPages(c, c.getPageIndices())).forEach(p => pdf.addPage(p));
+    return await pdf.save();
+  } catch (e) { console.log("withCopy", e); return main; }
+}
 async function makePdf(kind, key, btn) {
   $("prepared").classList.add("hidden");
   document.querySelectorAll("button[data-kind]").forEach(b => b.disabled = true);
   status("PDFを作っています…（10秒ほどかかります）");
   try {
     const r = await run("makePdf", kind, key);
-    const bin = atob(r.b64);
-    let bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const toBytes = (b64) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+    let bytes = toBytes(r.b64);
+    if (kind === "nouhin" && r.b64copy) bytes = await withCopy(bytes, toBytes(r.b64copy));
     if (kind === "nouhin") {
       const row = details.find(x => x.slip === key);
       if (row && row.main) bytes = await circleName(bytes, row.main + "様");
@@ -462,7 +471,7 @@ async function makePdf(kind, key, btn) {
     if (lastUrl) URL.revokeObjectURL(lastUrl);
     lastUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
     const [y, mo] = key.split("/");
-    $("preparedTitle").textContent = kind === "nouhin" ? `納品書　No.${key}` : `請求書　${y}年${+mo}月分`;
+    $("preparedTitle").textContent = kind === "nouhin" ? `納品書　No.${key}（1枚目＝納品書、2枚目＝控え）` : `請求書　${y}年${+mo}月分`;
     $("pdfLink").href = lastUrl;
     $("prepared").classList.remove("hidden");
     status("");
