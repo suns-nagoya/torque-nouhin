@@ -61,6 +61,7 @@
   .ohead { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
   .badge { font-size:13px; font-weight:600; padding:3px 9px; border-radius:99px; background:#eef2f6; color:var(--ink); }
   .badge.red { background:#b42318; color:#fff; } .badge.orange { background:#e8590c; color:#fff; }
+  .badge.purple { background:#6741d9; color:#fff; }
   .badge.yellow { background:#ffd43b; color:#3d2e00; } .badge.blue { background:#dbe7ff; color:#1d3f8a; } .badge.gray { background:#e9ecef; color:#616e7c; }
   .stage { font-size:13px; color:var(--sub); margin-left:auto; }
   .oitems { list-style:none; margin:0 0 8px; padding:0; font-size:15px; }
@@ -698,6 +699,11 @@ function renderOrders() {
   $("odList").innerHTML = list.map(o => {
     const n = done ? "" : orderNouki(o), [c, txt] = done ? ["", ""] : noukiBadge(n);
     const items = o.lines.map(l => `<li><b>${esc(l.orderNo)}</b>　${esc(l.name)}　${l.qty.toLocaleString("ja-JP")}本${l.fuzoku || l.iri ? `<div class="meta">${l.fuzoku ? "組付け：ボルト＋" + esc(l.fuzoku.trim().split(/\s+/).join("＋")) : ""}${l.fuzoku && l.iri ? "・" : ""}${l.iri ? `入り数${l.iri}` : ""}</div>` : ""}${l.slip ? `<div class="meta">納品済み（No.${esc(l.slip)}）　<button class="mini" data-kind="nouhin" data-key="${esc(l.slip)}" style="border:0;background:none;color:var(--accent);padding:0;font-size:13px">PDF</button></div>` : (l.nouki && done === false && o.lines.some(x => x.nouki !== l.nouki) ? `<div class="meta">納期 ${md(l.nouki)}</div>` : "")}</li>`).join("");
+    if (o.pending) return `<div class="card"><div class="ohead"><span class="badge purple">確認待ち</span><b>${n ? "納期 " + md(n) : ""}</b><span class="stage">メールから自動で読み取り</span></div>
+      <ul class="oitems">${items}</ul>
+      <div class="omore" style="margin-bottom:10px">${esc(o.src)}</div>
+      <button class="btn primary" data-oedit="${esc(o.id)}">確認する</button>
+      <div class="links"><button class="ngl" data-ocancel="${esc(o.id)}">取り消す</button></div></div>`;
     const stage = done ? "納品済み" : STAGES[o.stage];
     const btn = done ? "" : (o.stage < 3 ? `<button class="btn primary" data-next="${esc(o.id)}">${NEXT[o.stage]}</button>` : `<button class="btn primary" data-deliver="${esc(o.id)}">納品書を作る</button>`);
     const links = done ? "" : `<div class="links">${o.stage > 0 ? `<button data-back="${esc(o.id)}">1つ戻す</button>` : ""}<button data-oedit="${esc(o.id)}">直す</button><button class="ngl" data-ocancel="${esc(o.id)}">取り消す</button></div>`;
@@ -742,8 +748,8 @@ function oHint(div) {
 function oNumber() { [...$("oLines").children].forEach((d, i) => { d.querySelector(".no").textContent = `品目 ${i + 1}` + (d.dataset.slip ? "（納品済み）" : ""); }); }
 function openOrderForm(o, read) {
   odEditId = o && o.id || null;
-  $("odTitle").textContent = odEditId ? "受注を直す" : "新しい受注";
-  $("oSave").textContent = odEditId ? "直した内容を保存" : "登録する";
+  $("odTitle").textContent = o && o.pending ? "メールの指示書を確認" : odEditId ? "受注を直す" : "新しい受注";
+  $("oSave").textContent = o && o.pending ? "確認して登録" : odEditId ? "直した内容を保存" : "登録する";
   const v = o || {};
   $("oContact").innerHTML = `<option value="">選ぶ</option>` + contacts.map(n => `<option>${esc(n)}</option>`).join("") + (v.contact && !contacts.includes(v.contact) ? `<option>${esc(v.contact)}</option>` : "");
   $("oRecv").value = slashToIso(v.recv) || todayIso();
@@ -799,7 +805,14 @@ $("oSave").onclick = async () => {
   $("oSave").disabled = true; status("保存しています…");
   try {
     const was = odEditId;
-    setData(await run("saveOrder", odEditId, h, lines, by));
+    try { setData(await run("saveOrder", odEditId, h, lines, by)); }
+    catch (e) {
+      const m = /^DUP:(.+)$/.exec(errText(e));
+      if (!m) throw e;
+      if (!confirm(`同じ注番・数量の受注がすでにあります（FAXとメールの両方で届いた可能性があります）。それでも登録しますか？`)) { status("登録をやめました。", "info"); return; }
+      h.force = true;
+      setData(await run("saveOrder", odEditId, h, lines, by));
+    }
     closeOrderForm();
     renderPrintLists();
     status(was ? "受注を直しました。" : `受注を登録しました（${lines.length}品目）。`, "ok");
