@@ -698,7 +698,7 @@ function renderOrders() {
   else list.sort((a, b) => { const x = orderNouki(a) || "9999", y = orderNouki(b) || "9999"; return x !== y ? (x < y ? -1 : 1) : (a.recv < b.recv ? -1 : 1); });
   $("odList").innerHTML = list.map(o => {
     const n = done ? "" : orderNouki(o), [c, txt] = done ? ["", ""] : noukiBadge(n);
-    const items = o.lines.map(l => `<li><b>${esc(l.orderNo)}</b>　${esc(l.name)}　${l.qty.toLocaleString("ja-JP")}本${l.fuzoku || l.iri ? `<div class="meta">${l.fuzoku ? "組付け：ボルト＋" + esc(l.fuzoku.trim().split(/\s+/).join("＋")) : ""}${l.fuzoku && l.iri ? "・" : ""}${l.iri ? `入り数${l.iri}` : ""}</div>` : ""}${l.slip ? `<div class="meta">納品済み（No.${esc(l.slip)}）　<button class="mini" data-kind="nouhin" data-key="${esc(l.slip)}" style="border:0;background:none;color:var(--accent);padding:0;font-size:13px">PDF</button></div>` : (l.nouki && done === false && o.lines.some(x => x.nouki !== l.nouki) ? `<div class="meta">納期 ${md(l.nouki)}</div>` : "")}</li>`).join("");
+    const items = o.lines.map(l => `<li>${l.part ? `<div class="meta">${esc(l.part)}</div>` : ""}<b>${esc(l.orderNo)}</b>　${esc(l.name)}　${l.qty.toLocaleString("ja-JP")}本${l.fuzoku || l.iri ? `<div class="meta">${l.fuzoku ? "組付け：ボルト＋" + esc(l.fuzoku.trim().split(/\s+/).join("＋")) : ""}${l.fuzoku && l.iri ? "・" : ""}${l.iri ? `入り数${l.iri}` : ""}</div>` : ""}${l.slip ? `<div class="meta">納品済み（No.${esc(l.slip)}）　<button class="mini" data-kind="nouhin" data-key="${esc(l.slip)}" style="border:0;background:none;color:var(--accent);padding:0;font-size:13px">PDF</button></div>` : (l.nouki && done === false && o.lines.some(x => x.nouki !== l.nouki) ? `<div class="meta">納期 ${md(l.nouki)}</div>` : "")}</li>`).join("");
     if (o.pending) return `<div class="card"><div class="ohead"><span class="badge purple">確認待ち</span><b>${n ? "納期 " + md(n) : ""}</b><span class="stage">メールから自動で読み取り</span></div>
       <ul class="oitems">${items}</ul>
       <div class="omore" style="margin-bottom:10px">${esc(o.src)}</div>
@@ -726,12 +726,13 @@ function oLine(l = {}) {
   div.innerHTML = `
     <div class="itemhead"><span class="no"></span><button class="del" type="button">削除</button></div>
     <div class="row2"><div><label>注番</label><input class="lOrder" type="text" autocapitalize="characters" autocomplete="off" placeholder="例：G43254A"></div><div><label>納期</label><input class="lNouki" type="date"></div></div>
+    <div style="margin-top:8px"><label>部位（あれば）</label><input class="lPart" type="text" placeholder="例：オーバーブリッジ架台／歩廊連結部"></div>
     <div style="margin-top:8px"><label>品名</label><input class="lName" type="text" list="masterNames" placeholder="例：BT NT ユニクロ 24×135"></div>
     <div class="lHint" style="font-size:13px;color:var(--sub);margin-top:4px"></div>
     <div class="row2" style="margin-top:8px"><div><label>数量（本）</label><input class="lQty" type="number" inputmode="numeric" min="0"></div><div><label>入り数</label><input class="lIri" type="number" inputmode="numeric" min="0"></div></div>
     <div class="row2" style="margin-top:8px"><div><label>組付け（ボルト1本あたり）</label><input class="lFuzoku" type="text" placeholder="例：NT1 丸W1"></div><div><label>単価の指定（@）</label><input class="lPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="なければ空欄"></div></div>`;
   const q = (c) => div.querySelector(c);
-  q(".lOrder").value = l.orderNo || ""; q(".lNouki").value = slashToIso(l.nouki); q(".lName").value = l.name || "";
+  q(".lOrder").value = l.orderNo || ""; q(".lNouki").value = slashToIso(l.nouki); q(".lName").value = l.name || ""; q(".lPart").value = l.part || "";
   q(".lQty").value = l.qty || ""; q(".lIri").value = l.iri ?? ""; q(".lFuzoku").value = l.fuzoku || ""; q(".lPrice").value = l.price ?? "";
   if (l.slip) { div.dataset.slip = l.slip; q(".del").style.visibility = "hidden"; }
   q(".del").onclick = () => { div.remove(); oNumber(); };
@@ -762,7 +763,7 @@ function openOrderForm(o, read) {
   document.querySelectorAll("#odForm .warn, #odForm .bad").forEach(e => e.classList.remove("warn", "bad"));
   if (read && read.uncertain) {
     const ids = { recv: "oRecv", contact: "oContact", shikyu: "oShikyu", bill: "oBill", pack: "oPack", memo: "oMemo" };
-    const cls = { orderNo: ".lOrder", name: ".lName", qty: ".lQty", iri: ".lIri", fuzoku: ".lFuzoku", nouki: ".lNouki", price: ".lPrice" };
+    const cls = { part: ".lPart", orderNo: ".lOrder", name: ".lName", qty: ".lQty", iri: ".lIri", fuzoku: ".lFuzoku", nouki: ".lNouki", price: ".lPrice" };
     read.uncertain.forEach(k => {
       const p = String(k).split(".");
       if (ids[p[0]]) $(ids[p[0]]).classList.add("warn");
@@ -791,7 +792,7 @@ $("oSave").onclick = async () => {
     const q = (c) => d.querySelector(c);
     const l = { id: d.dataset.id || "", raw: d.dataset.raw || "", orderNo: normOrder(q(".lOrder").value), name: q(".lName").value.trim(), qty: num(q(".lQty").value),
                 iri: q(".lIri").value === "" ? "" : num(q(".lIri").value), fuzoku: q(".lFuzoku").value.trim(), nouki: isoToSlash(q(".lNouki").value),
-                price: q(".lPrice").value === "" ? "" : num(q(".lPrice").value) };
+                price: q(".lPrice").value === "" ? "" : num(q(".lPrice").value), part: q(".lPart").value.trim() };
     if (!l.orderNo && !l.name && !l.qty && !l.id) continue;
     if (!/^G[0-9A-Z\-]{2,20}$/.test(l.orderNo)) return bad(q(".lOrder"), `品目${i + 1}の注番（Gから始まる番号）を入れてください。`);
     if (!l.name) return bad(q(".lName"), `品目${i + 1}の品名を入れてください。`);
@@ -841,7 +842,7 @@ $("shotFile").onchange = () => {
       const r = await run("readOrderPhoto", b64, "image/jpeg");
       const contact = contacts.find(n => r.contact && (n === r.contact || r.contact.includes(n))) || r.contact || "";
       openOrderForm({ recv: r.recv, contact, shikyu: r.shikyu, bill: r.bill, pack: r.pack, memo: r.memo,
-        lines: (r.lines || []).map(l => ({ orderNo: l.orderNo, name: (findMaster(l.name) || {}).name || l.name, raw: l.raw, qty: l.qty, iri: l.iri ?? "", fuzoku: l.fuzoku, nouki: l.nouki, price: l.price ?? "" })) }, r);
+        lines: (r.lines || []).map(l => ({ part: l.part || "", orderNo: l.orderNo, name: (findMaster(l.name) || {}).name || l.name, raw: l.raw, qty: l.qty, iri: l.iri ?? "", fuzoku: l.fuzoku, nouki: l.nouki, price: l.price ?? "" })) }, r);
       status("読み取りました。写真と見比べて確かめてください。", "ok");
     } catch (e) {
       openOrderForm(null);
@@ -855,8 +856,12 @@ $("shotFile").onchange = () => {
 // 受注から納品書を作る（まだ納品していない品目をすべて入れる。今回は納品しない品目は「削除」）
 function setInForm(on) { $("inForm").classList.toggle("hidden", !on); $("inGuide").classList.toggle("hidden", on); }
 function fromOrder(o) {
-  const ls = o.lines.filter(l => !l.slip);
-  if (!ls.length) return;
+  const rest = o.lines.filter(l => !l.slip);
+  if (!rest.length) return;
+  // 納期がいくつかあるときは、いちばん早い納期の品目だけで1枚にする（残りは次の納品書）
+  const first = rest.map(l => l.nouki).filter(Boolean).sort()[0] || "";
+  const ls = rest.filter(l => (l.nouki || "") === first || !first);
+  const later = rest.length - ls.length;
   endEdit();
   fromOrd = o;
   $("saved").classList.add("hidden");
@@ -880,7 +885,7 @@ function fromOrder(o) {
   refresh();
   show("in");
   window.scrollTo({ top: 0, behavior: "smooth" });
-  status(o.bill ? `この受注は${+o.bill.split("/")[1]}月の請求書に載ります。` : "");
+  status([later ? `納期${md(first)}の品目（${ls.length}品目）を入れました。ほかの納期の${later}品目は、次の納品書で作ります。` : "", o.bill ? `この受注は${+o.bill.split("/")[1]}月の請求書に載ります。` : ""].filter(Boolean).join(""), later ? "info" : "info");
 }
 async function orderAction(fn, id, okMsg, ...args) {
   status("保存しています…");
