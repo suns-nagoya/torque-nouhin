@@ -26,8 +26,8 @@
   .row2 { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:10px; }
   .row2 > div { min-width:0; }
   input, select { height:46px; min-width:0; display:block; margin:0; }
-  input[type="date"] { -webkit-appearance:none; appearance:none; text-align:left; line-height:24px; }
-  input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
+  input[type="date"], input[type="month"] { -webkit-appearance:none; appearance:none; text-align:left; line-height:24px; max-width:100%; }
+  input[type="date"]::-webkit-date-and-time-value, input[type="month"]::-webkit-date-and-time-value { text-align:left; margin:0; }
   .item { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
   .item:first-child { border-top:0; padding-top:0; margin-top:0; }
   .itemhead { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px; color:var(--sub); }
@@ -101,7 +101,7 @@
       </div>
       <div class="row2" style="margin-top:10px">
         <div><label for="oShikyu">支給予定日</label><input type="date" id="oShikyu"></div>
-        <div><label for="oBill">請求月（「◯月伝票」のときだけ）</label><input type="month" id="oBill"></div>
+        <div><label for="oBill">請求月（◯月伝票のとき）</label><input type="month" id="oBill"></div>
       </div>
       <div style="margin-top:10px"><label for="oPack">梱包の指示</label><input type="text" id="oPack" placeholder="例：バンド必要・段ボールに十字のテープ"></div>
       <div style="margin-top:10px"><label for="oMemo">メモ</label><input type="text" id="oMemo" placeholder="例：12/1引取り"></div>
